@@ -312,18 +312,18 @@ class BoTSORT(object):
                 tracked_stracks.append(track)
 
         ''' Step 2: First association, with high score detection boxes'''
-        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
+        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks) # JOINS THE TWO LISTS
 
         # Predict the current location with KF
-        STrack.multi_predict(strack_pool)
+        STrack.multi_predict(strack_pool) # PREDICT THE TRACKLETS
 
-        # Fix camera motion
+        # Fix camera motion [NOT FOR US]
         warp = self.gmc.apply(img, dets)
         STrack.multi_gmc(strack_pool, warp)
         STrack.multi_gmc(unconfirmed, warp)
 
         # Associate with high score detection boxes
-        ious_dists = matching.iou_distance(strack_pool, detections)
+        ious_dists = matching.iou_distance(strack_pool, detections) # DISTANCE COMPUTATION FOR MATCHING !!!
         ious_dists_mask = (ious_dists > self.proximity_thresh)
 
         if not self.args.mot20:
@@ -347,7 +347,7 @@ class BoTSORT(object):
         else:
             dists = ious_dists
 
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh) # ACTUAL ASSOCIATION
 
         for itracked, idet in matches:
             track = strack_pool[itracked]
@@ -386,7 +386,7 @@ class BoTSORT(object):
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]
-            if track.state == TrackState.Tracked:
+            if track.state == TrackState.Tracked: ### THIS IS USELESS RIGHT???? SEE A FEW LINES ABOVE WHERE THE TRACK STATE IS TRACKED ANYWAYS???
                 track.update(det, self.frame_id)
                 activated_starcks.append(track)
             else:
@@ -395,7 +395,7 @@ class BoTSORT(object):
 
         for it in u_track:
             track = r_tracked_stracks[it]
-            if not track.state == TrackState.Lost:
+            if not track.state == TrackState.Lost:  ## THIS IS USELESS RIGHT?? THEY CAN ONLY BE TRACKED...
                 track.mark_lost()
                 lost_stracks.append(track)
 
@@ -406,7 +406,7 @@ class BoTSORT(object):
             dists = matching.fuse_score(dists, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
-            unconfirmed[itracked].update(detections[idet], self.frame_id)
+            unconfirmed[itracked].update(detections[idet], self.frame_id) # becomes activate again
             activated_starcks.append(unconfirmed[itracked])
         for it in u_unconfirmed:
             track = unconfirmed[it]
@@ -439,7 +439,7 @@ class BoTSORT(object):
         self.tracked_stracks, self.lost_stracks = remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
 
         # output_stracks = [track for track in self.tracked_stracks if track.is_activated]
-        output_stracks = [track for track in self.tracked_stracks]
+        output_stracks = [track for track in self.tracked_stracks] # WHAT'S THIS FOR???
 
 
         return output_stracks
