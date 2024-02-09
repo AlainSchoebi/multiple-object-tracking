@@ -27,18 +27,18 @@ class KalmanFilter:
           where v is a zero-mean Gaussian RV with covariance Q.
 
         Inputs
-        - x_m: (n, 1) or (n,) a posteriori estimate of the state,
+        - x_m: `(n, 1)` or `(n,)` a posteriori estimate of the state,
                i.e. x_{k-1|k-1}.
-        - P_m: (n, n) a posteriori covariance matrix of the state,
+        - P_m: `(n, n)` a posteriori covariance matrix of the state,
                i.e. P_{k-1|k-1}.
-        - A:   (n, n) state transition matrix
-        - b:   (n, 1) or (n,) bias vector
-        - Q:   (n, n) process noise covariance matrix
+        - A:   `(n, n)` state transition matrix
+        - b:   `(n, 1)` or `(n,)` bias vector
+        - Q:   `(n, n)` process noise covariance matrix
 
         Outputs
-        - x_p: (n, 1) or (n,) predicted state estimate at the next time step
+        - x_p: `(n, 1)` or `(n,)` predicted state estimate at the next time step
                when applying the dynamics, i.e. x_{k|k-1}.
-        - P_p: (n, n) covariance matrix of the state at the next time step, when
+        - P_p: `(n, n)` covariance matrix of the state at the next time step, when
                applying the dynamics, i.e. P_{k|k-1}.
         """
 
@@ -70,18 +70,18 @@ class KalmanFilter:
           where w is a zero-mean Gaussian RV with covariance R.
 
         Inputs
-        - x_p: (n, 1) or (n,) prior estimate of the state, i.e. x_{k|k-1}.
-        - P_p: (n, n) prior covariance matrix of the state, i.e. P_{k|k-1}.
-        - z:   (m, 1) or (m,) observed measurement, i.e. z_k
-        - H:   (m, n) observation matrix
-        - R:   (m, m) measurement noise covariance matrix, symmetric definite
+        - x_p: `(n, 1)` or `(n,)` prior estimate of the state, i.e. x_{k|k-1}.
+        - P_p: `(n, n)` prior covariance matrix of the state, i.e. P_{k|k-1}.
+        - z:   `(m, 1)` or `(m,)` observed measurement, i.e. z_k
+        - H:   `(m, n)` observation matrix
+        - R:   `(m, m)` measurement noise covariance matrix, symmetric definite
                postive
 
         Outputs
-        - x_m: (n, 1) or (n,) a posteriori state estimate after taking employing
+        - x_m: `(n, 1)` or `(n,)` a posteriori state estimate after employing
                the measurement z_k, i.e. x_{k|k}.
-        - P_m: (n, n) covariance matrix of the state at the next time step, when
-               applying the dynamics, i.e. P_{k|k-1}.
+        - P_m: `(n, n)` a posteriori covariance matrix of the state after
+               employing the measurement z_k, i.e. x_{k|k}.
         """
 
         n, m = x_p.shape[0], z.shape[0]

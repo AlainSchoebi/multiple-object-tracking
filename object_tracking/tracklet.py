@@ -4,7 +4,7 @@ from enum import Enum
 
 from kalman_filter import KalmanFilter
 
-from utils.xywh import XYWH
+from utils.bbox import BBox
 
 #class BaseTracklet???:
 #    pass
@@ -38,8 +38,8 @@ class Tracklet:
 
     pass
 
-    def state_xywh(self):
-        return XYWH(*self.state[:4])
+    def state_bbox(self):
+        return BBox.from_center_wh(*self.state[:4])
 
     def predict(self):
         Q = ...

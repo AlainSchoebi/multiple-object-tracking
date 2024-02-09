@@ -1,16 +1,17 @@
 # Typing
 from __future__ import annotations
-from typing import List, Any, NewType
+from typing import List, Any, NewType, Callable
 
 # Numpy
 import numpy as np
+from numpy.typing import NDArray
 
 # Object Tracking
 from tracklet import Tracklet
 
 # Utils
-from utils.xywh import XYWH
-from xywh_tracking import LabeledXYWH, Detection
+from utils.bbox import BBox, XYXYMode
+from bbox_tracking import LabeledBBox, Detection
 
 # Cython bbox
 import cython_bbox
@@ -38,38 +39,83 @@ class Tracker:
             tracklet.predict()
 
         #
-        Tracker.associate(self.tracklets, detections, "iou", 0.7)
+        Tracker.associate(self.tracklets, detections, Tracker.iou_metric, 0.7)
 
         pass
 
+
     @staticmethod
     def associate(tracklets: List[Tracklet], detections: List[Detection],
-                  metric: str,
-                  metric_treshold: float):
+                  metric: Callable[[List[Tracklet], List[Detection]], NDArray],
+                  metric_treshold: float) -> TODOType:
+
+        # Compute metric
+        values = metric(tracklets, detections)
+
+        # Threshold ????
+
+        # Associate
 
         if metric.lower() == "iou":
 
             tracklets_xyxy = []
             for tracklet in tracklets:
-                tracklets_xyxy.append(tracklet.state_xywh().xyxy())
+                xyxy = tracklet.state_bbox().xyxy_array(mode=XYXYMode.PIXEL)
+                tracklets_xyxy.append(xyxy)
 
             detections_xyxy = []
             for detection in detections:
-                detections_xyxy.append(detection.xyxy())
+                xyxy = detection.xyxy_array(mode=XYXYMode.PIXEL)
+                detections_xyxy.append(xyxy)
+
+            tracklets_xyxy = np.array(tracklets_xyxy)
+            detections_xyxy = np.array(detections_xyxy)
 
             # Compute IoU
-            a = np.array([[1,2,3,3]], dtype=np.float64)
-            b = np.array([[1,2,3,6]], dtype=np.float64)
-            r = cython_bbox.bbox_overlaps(a, b)
+            ious = cython_bbox.bbox_overlaps(tracklets_xyxy, detections_xyxy)
+            print(f"IoUs: {ious}")
+
+            r = cython_bbox.bbox_overlaps(
+                a.xyxy_array(mode=XYXYMode.PIXEL)[None, :],
+                b.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
+            )
+
+            print(f"Iou: {r}")
+            BBox.visualize([a,b])
+            print(f"Iou: {r}")
+            print(f"Iou: {r}")
+            print(f"Iou: {r}")
 
         else:
             raise NotImplementedError(f"The metric '{metric}' is not " +
                                       f"supported.")
 
     @property
-    def labeled_bboxes(self) -> List[LabeledXYWH]:
+    def labeled_bboxes(self) -> List[LabeledBBox]:
         pass
 
+
+    @staticmethod
+    def iou_metric(tracklets: List[Tracklet], detections: List[Detection]) \
+          -> NDArray:
+
+        # Turn tracklets into XYXY array (with PIXEL model)
+        tracklets_xyxy = []
+        for tracklet in tracklets:
+            xyxy = tracklet.state_bbox().xyxy_array(mode=XYXYMode.PIXEL)
+            tracklets_xyxy.append(xyxy)
+
+        # Turn detections into XYXY array (with PIXEL model)
+        detections_xyxy = []
+        for detection in detections:
+            xyxy = detection.xyxy_array(mode=XYXYMode.PIXEL)
+            detections_xyxy.append(xyxy)
+
+        tracklets_xyxy = np.array(tracklets_xyxy)
+        detections_xyxy = np.array(detections_xyxy)
+
+        # Compute IoU
+        return cython_bbox.bbox_overlaps(tracklets_xyxy, detections_xyxy)
 
 
 # USAGE IDEA
@@ -78,10 +124,9 @@ object_tracker = Tracker(config)
 
 # At each step
 detections = [Detection(2,3,1,1,"cat",0.9), Detection(1,2,1,2, "dog", 0.2)]
-from utils.xywh import XYWH
 print(detections[0])
 print(detections[0].corner_coordinates())
-XYWH.visualize(detections)
+#BBox.visualize(detections)
 object_tracker.update(detections)
 
 #... = object_tracker.get_labeled_bboxes()
