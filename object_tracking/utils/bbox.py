@@ -18,8 +18,20 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
+# Cython BBox
+try:
+    import cython_bbox
+    CYTHON_BBOX_AVAILABLE = True
+except ImportError:
+    CYTHON_BBOX_AVAILABLE = False
+
 
 class XYXYMode(Enum):
+    """
+    Two representaitons mode
+    Two representaitons mode
+    TODO
+    """
     NORMAL = 0
     PIXEL = 1
 
@@ -32,6 +44,9 @@ class BBox:
 
     # Constructors
     def __init__(self, x: float = 0, y: float = 0, w: float = 1, h: float = 1):
+        """
+        Default constructor for the `BBox` class.
+        """
         self.__x = float(x)
         self.__y = float(y)
         self.__w = float(w)
@@ -41,15 +56,29 @@ class BBox:
     @staticmethod
     def from_xyxy(x1: float, y1: float, x2: float, y2: float,
                   mode: XYXYMode = XYXYMode.NORMAL) -> BBox:
+        """
+        Create a `BBox` from top left x-y and bottom right x-y coordinates.
+        """
         if not mode == XYXYMode.NORMAL:
             raise NotImplementedError("Only mode 'XYXYMode.NORMAL' is " +
                                       "supported here.")
         return BBox(x1, y1, x2 - x1, y2 - y1)
 
+    @staticmethod
+    def from_two_corners(x1: float, y1: float, x2: float, y2: float) -> BBox:
+        """
+        Create a `BBox` from any two corners defining the bounding box.
+        """
+        return BBox.from_xyxy(
+            min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+        )
 
     @staticmethod
     def from_center_wh(x_center: float, y_center: float, w: float, h: float,
                        mode: XYXYMode = XYXYMode.NORMAL) -> BBox:
+        """
+        Create a `BBox` from the center x-y coordinates, and width and height.
+        """
         if not mode == XYXYMode.NORMAL:
             raise NotImplementedError("Only mode 'XYXYMode.NORMAL' is " +
                                       "supported here.")
@@ -58,6 +87,9 @@ class BBox:
     @staticmethod
     def random(position_max: float = 100,
                size_mean: float = 10, size_std: float = 6) -> BBox:
+        """
+        Create a random `BBox`.
+        """
 
         w, h = -1, -1
         while w < 0: w = np.random.normal(size_mean, size_std)
@@ -71,11 +103,15 @@ class BBox:
 
     def copy(self) -> BBox:
         """
-        Return a deep copy of this bounding box.
+        Return a deep copy of this BBox.
         """
         return BBox(self.x, self.y, self.w, self.h)
 
+
     def _check(self):
+        """
+        Check if the parameters of the BBox are valid or not.
+        """
         if self.w < 0 or self.h < 0:
             raise ValueError("The width and height of a BBox can't be " +
                              "negative.")
@@ -117,6 +153,11 @@ class BBox:
         if mode == XYXYMode.NORMAL:
             return self.x + self.w
         elif mode == XYXYMode.PIXEL:
+            if self.w < 1:
+                raise ValueError(
+                    f"ERROR: cannot use XYXYMode.PIXEL mode when width is " +
+                    f"strictly smaller than one, i.e. w < 1."
+                )
             return self.x + self.w - 1
         else:
             raise NotImplementedError(f"The mode '{mode}' is not supported.")
@@ -128,6 +169,11 @@ class BBox:
         if mode == XYXYMode.NORMAL:
             return self.y + self.h
         elif mode == XYXYMode.PIXEL:
+            if self.h < 1:
+                raise ValueError(
+                    f"ERROR: cannot use XYXYMode.PIXEL mode when height is " +
+                    f"strictly smaller than one, i.e. h < 1."
+                )
             return self.y + self.h - 1
         else:
             raise NotImplementedError(f"The mode '{mode}' is not supported.")
@@ -252,25 +298,48 @@ class BBox:
         return self.__mul__(scale)
 
 
+    # Cython BBox
+    if CYTHON_BBOX_AVAILABLE:
+        @staticmethod
+        def iou(b_1: BBox, b_2: BBox) -> float:
+            """
+            Compute the Intersection-over-Union (IoU) between two BBoxes.
+
+            Inputs
+            - b_1: `BBox`
+            - b_2: `BBox`
+
+            Returns
+            - iou: `float` the IoU between BBox b_1 and BBox b_2
+            """
+
+            xyxy_1 = b_1.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
+            xyxy_2 = b_2.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
+
+            return cython_bbox.bbox_overlaps(xyxy_1, xyxy_2)[0, 0]
+
+
     # Visualization functions
     if MATPLOTLIB_AVAILABLE :
-        def show(self, axes: Optional[Axes] = None) -> Axes:
+        def show(self, axes: Optional[Axes] = None, **args) -> Axes:
             """
             Visualize the BBox in a matloptlib plot.
             """
-            return BBox.visualize(self, axes)
+            return BBox.visualize(self, axes, **args)
 
         @staticmethod
         def visualize(bboxes: Union[BBox, List[BBox]],
-                      axes: Optional[Axes] = None) -> Axes:
+                      axes: Optional[Axes] = None,
+                      show: Optional[bool] = True,
+                      show_text: Optional[bool] = True) -> Axes:
             """
             Visualize a list of BBoxes in a matloptlib plot.
 
-            Inputs:
-            - bboxes: list of BBoxs to plot
+            Inputs
+            - bboxes: list of `BBox` to plot
             """
 
-            if type(bboxes) == BBox:
+            if not type(bboxes) == list:
                 bboxes = [bboxes]
 
             # No axes provided
@@ -280,12 +349,15 @@ class BBox:
                 ax: Axes = fig.add_subplot()
 
                 # Title
-                ax.set_title(f"XYWH{'s' if len(bboxes) > 1 else ''} " +
+                ax.set_title(f"BBox{'es' if len(bboxes) > 1 else ''} " +
                              f"visualization")
 
                 # Axis labels
                 ax.set_xlabel('x')
                 ax.set_ylabel('y')
+                ax.xaxis.set_ticks_position('top')
+                ax.xaxis.set_label_position('top')
+                ax.invert_yaxis()
 
             # Axes provided
             else:
@@ -297,8 +369,11 @@ class BBox:
 
             alpha = max(0.2, 1/len(bboxes))
 
-            # Plot poses
-            for i, (bbox, color) in enumerate(zip(bboxes, colors)):
+            # Plot
+            bbox: BBox
+            for i, bbox in enumerate(bboxes):
+
+                color = colors[i%len(colors)]
 
                 # Rectangle
                 rectangle = matplotlib.patches.Rectangle(
@@ -308,8 +383,8 @@ class BBox:
                 ax.add_patch(rectangle)
 
                 # Labels
-                if len(bboxes) > 1 or \
-                   hasattr(bbox, "label") or hasattr(bbox, "name"):
+                if show_text and (len(bboxes) > 1 or \
+                   hasattr(bbox, "label") or hasattr(bbox, "name")):
                     label = i
                     if hasattr(bbox, "name"):
                         label = bbox.name
@@ -322,11 +397,8 @@ class BBox:
             if axes is None:
                 # Axis parameters
                 ax.axis('equal')
-                ax.xaxis.set_ticks_position('top')
-                ax.xaxis.set_label_position('top')
-                ax.invert_yaxis()
 
                 # Show
-                plt.show()
+                if show: plt.show()
 
             return ax

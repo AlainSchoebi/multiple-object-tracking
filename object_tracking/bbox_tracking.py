@@ -12,7 +12,7 @@ class LabeledBBox(BBox):
         self.label = label
 
     @staticmethod
-    def from_xywh(bbox: BBox, label: Any) -> LabeledBBox:
+    def from_bbox(bbox: BBox, label: Any) -> LabeledBBox:
         return LabeledBBox(*bbox, label)
 
     def __repr__(self):
@@ -20,7 +20,7 @@ class LabeledBBox(BBox):
 
     def __str__(self):
         return f"LabeledBBOX(x={self.x}, y={self.y}, " + \
-               f"w={self.w}, h={self.h}, label={self.label})"
+               f"w={self.w}, h={self.h}, label='{self.label}')"
 
 class Detection(BBox):
 
@@ -34,7 +34,7 @@ class Detection(BBox):
                              f"for creating a Detection.")
 
     @staticmethod
-    def from_xywh(bbox: BBox, label: str, confidence: float) -> Detection:
+    def from_bbox(bbox: BBox, label: str, confidence: float) -> Detection:
         return Detection(*bbox, label, confidence)
 
     def __repr__(self):
@@ -42,5 +42,5 @@ class Detection(BBox):
 
     def __str__(self):
         return f"Detection(x={self.x}, y={self.y}, " + \
-               f"w={self.w}, h={self.h}, label={self.label}, " + \
+               f"w={self.w}, h={self.h}, label='{self.label}', " + \
                f"confidence={self.confidence:.2f})"
