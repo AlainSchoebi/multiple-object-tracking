@@ -197,7 +197,7 @@ class BBox:
 
 
     # Methods
-    def corner_coordinates(self, mode: XYXYMode = XYXYMode.NORMAL) -> NDArray:
+    def corners(self, mode: XYXYMode = XYXYMode.NORMAL) -> NDArray:
         """
         Returns the four corner coordinates:
           - in a CCW manner when the x-axis points right and the y-axis down
@@ -331,12 +331,22 @@ class BBox:
         def visualize(bboxes: Union[BBox, List[BBox]],
                       axes: Optional[Axes] = None,
                       show: Optional[bool] = True,
-                      show_text: Optional[bool] = True) -> Axes:
+                      show_text: Optional[bool] = True,
+                      color: Optional[NDArray] = None,
+                      alpha: Optional[float] = None) -> Axes:
             """
             Visualize a list of BBoxes in a matloptlib plot.
 
             Inputs
             - bboxes: list of `BBox` to plot
+
+            Optional Inputs
+            - axes: `Axes` matplotlib axes to plot on. If not provided, a new
+                    figure will be created.
+            - show: `bool` whether to show the plot or not. Default is True.
+            - show_text: `bool` whether to show the label of the BBoxes or not.
+            - color: `NDArray(3,)` color of the BBoxes.
+            - alpha: `float` transparency of the BBoxes.
             """
 
             if not type(bboxes) == list:
@@ -367,18 +377,18 @@ class BBox:
             colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
             colors = [matplotlib.colors.to_rgb(color) for color in colors]
 
-            alpha = max(0.2, 1/len(bboxes))
+            if alpha is None: alpha = max(0.2, 1/len(bboxes))
 
             # Plot
             bbox: BBox
             for i, bbox in enumerate(bboxes):
 
-                color = colors[i%len(colors)]
+                c = colors[i%len(colors)] if color is None else color
 
                 # Rectangle
                 rectangle = matplotlib.patches.Rectangle(
                     (bbox.x, bbox.y), bbox.w, bbox.h, alpha=alpha,
-                    edgecolor=np.array(color) * 0.7, facecolor=color,
+                    edgecolor=np.array(c) * 0.7, facecolor=c,
                    )
                 ax.add_patch(rectangle)
 
@@ -391,7 +401,7 @@ class BBox:
                     elif hasattr(bbox, "label"):
                         label = bbox.label
                     ax.text(*bbox.center(), label, ha='center', va='center',
-                            alpha=alpha, color=np.array(color) * 0.7,
+                            alpha=alpha, color=np.array(c) * 0.7,
                             fontsize=12)
 
             if axes is None:

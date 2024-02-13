@@ -7,34 +7,32 @@ import numpy as np
 from numpy.typing import NDArray
 
 # Librairies
-import cython_bbox
 import lap
 
-# Tracking
-from tracklet import Tracklet
-import metrics
+# Matplotlib
+import matplotlib.pyplot as plt
 
 # Utils
 from utils.bbox import BBox, XYXYMode
 from bbox_tracking import LabeledBBox, Detection
 
-
-import matplotlib.pyplot as plt
-
+# Tracking
+from tracklet import Tracklet
+import metrics
+from interactive_tracking import InteractiveTracker
 
 TODOType = NewType("TODOType", Any)
 
 class Tracker:
 
     default_config = {
-        "tracklet_config": Tracklet.default_config,
     }
 
     def __init__(self, config = None):
 
         self.config = config
         if self.config is None:
-            self.config = Tracker.default_config
+            self.config = Tracker.default_config.copy()
 
         self.tracklets = []
 
@@ -130,98 +128,13 @@ class Tracker:
         pass
 
 
-# INTERACTIVE
-# Connect the callback function to the button press event
+
+InteractiveTracker()
 
 
-detections = [Detection(2,3,1,1,"cat",0.9), Detection(1,2,1,2, "dog", 0.2)]
+detections = [Detection(2,3,50,50,"cat",0.9), Detection(1,2,1,2, "dog", 0.2)]
 # Tracklet
 t = Tracklet.initiate_from_detection(detections[0])
-t.state[4] = 0 # vx speed
-t2 = t.copy()
-t2.predict()
-
-obs = Detection(12,3,8,8,"cat",0.9)
-t3 = t2.copy()
-t3.update(obs)
-
-#ax = t3.show(num=10,show=False,show_text=False)
-
-class RectangleDrawer:
-    def __init__(self, tracklet):
-
-        fig = plt.figure()
-        ax = fig.add_subplot()
-
-        # Axis labels
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_xlim(0, 100)
-        ax.set_ylim(0, 100)
-        ax.xaxis.set_ticks_position('top')
-        ax.xaxis.set_label_position('top')
-        ax.invert_yaxis()
-
-        self.ax = ax
-        self.tracklet = tracklet
-        self.start_point = None
-        self.start_point_draw = None
-        self.rectangle = None
-        self.step = -1
-        self.tracklet.show(axes=self.ax, num=50, show_text=False)
-
-        self.cid_press = ax.figure.canvas.mpl_connect('button_press_event', self.on_press)
-
-
-    def clear(self):
-        for patch in self.ax.patches:
-            if isinstance(patch, plt.Rectangle):
-                patch.remove()
-        for text in self.ax.texts:
-            text.remove()
-
-    def on_press(self, event):
-
-        if event.inaxes != self.ax:
-            return
-
-        if event.button == 1:
-
-            if self.start_point is None:
-                self.start_point = (event.xdata, event.ydata)
-                self.start_point_draw = self.ax.scatter(*self.start_point, s = 50, c="k")
-
-                plt.draw()
-
-            else:
-                self.start_point_draw.remove()
-                self.clear()
-
-                end_point = (event.xdata, event.ydata)
-
-                bbox = BBox.from_two_corners(*self.start_point, *end_point)
-                detection = Detection.from_bbox(bbox, 'Detection', 1.0)
-                detection.show(axes=self.ax)
-
-                self.tracklet.update(detection)
-                self.tracklet.show(axes=self.ax, num=50, show_text=False)
-
-                self.start_point=None
-
-                plt.draw()
-
-        elif event.button == 3:
-            self.clear()
-            self.tracklet.predict()
-            self.tracklet.show(axes=self.ax, num=50, show_text=False)
-
-            plt.draw()
-
-drawer = RectangleDrawer(t)
-plt.show()
-
-#cid = ax.figure.canvas.mpl_connect('button_press_event', on_click)
-#plt.show()
 
 # USAGE IDEA
 config = {}
@@ -229,7 +142,7 @@ object_tracker = Tracker(config)
 
 # At each step
 print(detections[0])
-print(detections[0].corner_coordinates())
+print(detections[0].corners())
 #BBox.visualize(detections)
 object_tracker.update(detections)
 

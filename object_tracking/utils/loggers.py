@@ -1,12 +1,15 @@
+# Typing
+from typing import List, Tuple
+
+# Python
 import logging
 from logging import Logger
-from typing import List, Tuple
-import os
+from pathlib import Path
 from colorama import Fore, Back, Style
 
 
 def get_all_loggers_name() -> List[str]:
-    return list(logging.Logger.manager.loggerDict.keys())
+    return list(Logger.manager.loggerDict.keys())
 
 def set_all_loggers_level_to(level: int = logging.WARNING):
     for name in get_all_loggers_name():
@@ -22,7 +25,6 @@ def markdown_to_text(md: str) -> Tuple[str, bool]:
         md = md[:-1]
         if md[-1] == '*': bold = True
     return md, bold
-
 
 
 def get_logger(name: str = "my_logger",
@@ -48,7 +50,7 @@ def get_logger(name: str = "my_logger",
 
     # Create log file or empty the log file
     if log_file is not None:
-        if os.path.exists(log_file): os.remove(log_file)
+        if Path(log_file).exists(): Path(log_file).unlink()
         f = open(log_file, "x"); f.close()
 
         # File handler
