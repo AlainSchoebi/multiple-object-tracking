@@ -6,6 +6,9 @@ from typing import Any
 from utils.bbox import BBox
 
 class LabeledBBox(BBox):
+    """
+    LabeledBBox class that extends BBox with a label.
+    """
 
     def __init__(self, x:int, y: int, w: int, h: int, label: Any):
         super().__init__(x, y, w, h)
@@ -23,6 +26,9 @@ class LabeledBBox(BBox):
                f"w={self.w}, h={self.h}, label='{self.label}')"
 
 class Detection(BBox):
+    """
+    Detetion class that extends BBox with a label and a confidence score.
+    """
 
     def __init__(self, x:int, y: int, w: int, h: int,
                 label: str, confidence: float):

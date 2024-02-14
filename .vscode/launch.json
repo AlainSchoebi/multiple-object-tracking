@@ -5,10 +5,26 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Tracker",
+            "name": "Main",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/object_tracking/tracker.py",
+            "program": "${workspaceFolder}/object_tracking/main.py",
+            "console": "integratedTerminal",
+            "args": ""
+        },
+        {
+            "name": "Interactive SOT",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/object_tracking/interactive_sot.py",
+            "console": "integratedTerminal",
+            "args": ""
+        },
+        {
+            "name": "Interactive MOT",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/object_tracking/interactive_mot.py",
             "console": "integratedTerminal",
             "args": ""
         }

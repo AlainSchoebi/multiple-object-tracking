@@ -35,14 +35,14 @@ def iou(tracklets: List[Tracklet], detections: List[Detection]) \
     # Turn tracklets into XYXY array (with PIXEL model)
     tracklets_xyxy = []
     for tracklet in tracklets:
-        xyxy = tracklet.mean_state_bbox().xyxy_array(mode=XYXYMode.PIXEL)
+        xyxy = tracklet.bbox().xyxy_array(mode=XYXYMode.PIXELNOERROR)
         tracklets_xyxy.append(xyxy)
     tracklets_xyxy = np.array(tracklets_xyxy)
 
     # Turn detections into XYXY array (with PIXEL model)
     detections_xyxy = []
     for detection in detections:
-        xyxy = detection.xyxy_array(mode=XYXYMode.PIXEL)
+        xyxy = detection.xyxy_array(mode=XYXYMode.PIXELNOERROR)
         detections_xyxy.append(xyxy)
     detections_xyxy = np.array(detections_xyxy)
 

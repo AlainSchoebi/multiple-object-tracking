@@ -34,6 +34,7 @@ class XYXYMode(Enum):
     """
     NORMAL = 0
     PIXEL = 1
+    PIXELNOERROR = 2
 
 class BBox:
     """
@@ -159,6 +160,8 @@ class BBox:
                     f"strictly smaller than one, i.e. w < 1."
                 )
             return self.x + self.w - 1
+        elif mode == XYXYMode.PIXELNOERROR:
+            return self.x + self.w - 1
         else:
             raise NotImplementedError(f"The mode '{mode}' is not supported.")
 
@@ -174,6 +177,8 @@ class BBox:
                     f"ERROR: cannot use XYXYMode.PIXEL mode when height is " +
                     f"strictly smaller than one, i.e. h < 1."
                 )
+            return self.y + self.h - 1
+        elif mode == XYXYMode.PIXELNOERROR:
             return self.y + self.h - 1
         else:
             raise NotImplementedError(f"The mode '{mode}' is not supported.")

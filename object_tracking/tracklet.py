@@ -1,6 +1,6 @@
 # Typing
 from __future__ import annotations
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 # Numpy
 import numpy as np
@@ -8,30 +8,22 @@ from numpy.typing import NDArray
 
 # Python
 from collections import deque
-from enum import Enum
-from math import sqrt
 
 # Matplotlib
 from matplotlib.axes import Axes
-from matplotlib.patches import FancyArrow, FancyArrowPatch
+from matplotlib.patches import FancyArrow
 
 # Utils
-from utils.kalman_filter import KalmanFilter
+import utils.kalman_filter as kf
 from utils.bbox import BBox, XYXYMode
+
+# Tracking
+from bbox_tracking import Detection
+from bbox_tracking import LabeledBBox
 
 # Logging
 from utils.loggers import get_logger
 logger = get_logger(__name__)
-
-# Tracking
-from bbox_tracking import Detection
-
-class TrackletStatus(Enum):
-    Tracked = 1
-    GREEN = 2
-    BLUE = 3
-
-    #    self.status = None -> getstatus BUT FROM the Tracker!
 
 def _initial_covariance() -> NDArray:
     # Covariance matrix
@@ -51,7 +43,7 @@ def _initial_covariance() -> NDArray:
 
     cov[H, VH] = 0.4
     cov[VH, H] = 0.4
-    return cov
+    return cov.astype(float)
 
 class Tracklet:
     """
@@ -75,19 +67,23 @@ class Tracklet:
                             initiating a new tracklet from a detection.
     - epsilon_size:         `float` the smallest value used for the BBoxes size
                             to avoid numerical issues.
+    TODO
     """
 
     # Indices
     X, Y, W, H, VX, VY, VW, VH = range(8)
 
+
     # Configuration
     config = {
         "history_maxlen": 10,
-        "kf_position_noise": 1,
-        "kf_velocity_noise": 0.1,
-        "kf_measurement_noise": 0.5,
+        "kf_position_noise": 0.05,
+        "kf_velocity_noise": 0.00625,
+        "kf_measurement_noise": 0.05,
         "initial_covariance": _initial_covariance(),
-        "epsilon_size": 1e-4
+        "epsilon_size": 1.0,
+        "active_steps": 2,
+        "long_lost_steps": 5,
     }
 
 
@@ -117,24 +113,31 @@ class Tracklet:
             raise ValueError(f"Argument '{arg}' not found in the tracklet " +
                              f"configuration.")
 
+        if type(Tracklet.config[arg]) == float and type(value) == int:
+            value = float(value)
+
         if not type(Tracklet.config[arg]) == type(value):
             logger.error(f"Argument '{arg}' has type " +
                          f"{type(Tracklet.config[arg])} but the value has " +
                          f"type {type(value)}.")
             raise ValueError(f"Argument '{arg}' has type " +
-                         f"{type(Tracklet.config[arg])} but the value has " +
-                         f"type {type(value)}.")
+                             f"{type(Tracklet.config[arg])} but the value " +
+                             f"has type {type(value)}.")
 
         Tracklet.config[arg] = value
 
 
-    def __init__(self):
+    def __init__(self, label: Optional[Any] = None):
         """
         Default constructor of the `Tracklet` class.
+
+        Inputs
+        - label: `Any` optional label of the tracklet.
         """
         self.history = deque(maxlen=Tracklet.config["history_maxlen"])
         self.state = np.array([])
         self.covariance = np.array([])
+        self.label = label
 
 
     def copy(self) -> Tracklet:
@@ -150,7 +153,8 @@ class Tracklet:
 
 
     @staticmethod
-    def initiate_from_detection(detection: Detection) -> Tracklet:
+    def initiate_from_detection(detection: Detection,
+                                label: Optional[Any] = None) -> Tracklet:
         """
         Initiate a new `Tracklet` from a `Detection`.
         The state is set to the center, width, height of the detection, and 0
@@ -159,13 +163,14 @@ class Tracklet:
 
         Inputs
         - detection: `Detection` the detection to initiate the tracklet from.
+        - label: `Any` optional label of the tracklet.
 
         Returns
         - tracklet: `Tracklet` the initiated tracklet.
         """
 
         # New tracklet
-        tracklet = Tracklet()
+        tracklet = Tracklet(label=label)
 
         # State: center, w, h from detection, and 0 velocity
         tracklet.state = np.array([
@@ -180,20 +185,23 @@ class Tracklet:
 
         return tracklet
 
-    def mean_state_bbox(self) -> BBox:
+    def bbox(self) -> BBox:
         try:
             return BBox.from_center_wh(*self.state[:4])
         except:
-            print("error")
-            return None
+            logger.critical("This should not happen TODO")
+            raise ValueError("This sould not happenn!!!! TODO")
+
+    def labeled_bbox(self) -> LabeledBBox:
+        return LabeledBBox.from_bbox(self.bbox(), self.label)
 
     def _check_state(self):
         if self.state[Tracklet.W] < Tracklet.config["epsilon_size"]:
             self.state[Tracklet.W] = Tracklet.config["epsilon_size"]
-            logger.warn("KF: Negative width detected. Set to `epsilon_size`.")
+            logger.warn("KF: Small width detected. Set to `epsilon_size`.")
         if self.state[Tracklet.H] < Tracklet.config["epsilon_size"]:
             self.state[Tracklet.H] = Tracklet.config["epsilon_size"]
-            logger.warn("KF: Negative height detected. Set to `epsilon_size`.")
+            logger.warn("KF: Small height detected. Set to `epsilon_size`.")
 
 
     def predict(self):
@@ -203,7 +211,7 @@ class Tracklet:
         """
 
         # Access values
-        _, _, w, h = self.mean_state_bbox().xywh_tuple()
+        _, _, w, h = self.bbox().xywh_tuple()
 
         A = np.kron(np.array([[1, 1],
                               [0, 1]]), np.eye(4))
@@ -222,7 +230,7 @@ class Tracklet:
                      velocity_x_noise_std**2, velocity_y_noise_std**2]) # vw, vh
 
         # Prediction step
-        x_p, P_p = KalmanFilter.prior_update(
+        x_p, P_p = kf.prior_update(
             self.state, self.covariance, A, b, Q
         )
 
@@ -242,7 +250,7 @@ class Tracklet:
 
         # TODO capture detection uncertainty in H !!
         if detection is not None:
-            w, h = self.mean_state_bbox().w, self.mean_state_bbox().h
+            w, h = self.bbox().w, self.bbox().h
             k_m = Tracklet.config["kf_measurement_noise"]
 
             z = detection.center_wh_array()
@@ -251,7 +259,7 @@ class Tracklet:
                          (k_m * w)**2, (k_m * h)**2]) # w, h
 
             # Measurement step
-            x_m, P_m = KalmanFilter.measurement_update(
+            x_m, P_m = kf.measurement_update(
                 self.state, self.covariance, z, H, R
             )
 
@@ -265,7 +273,63 @@ class Tracklet:
             self.history.append(True)
 
 
-    def show(self, num: Optional[int] = 100, **args) -> Axes:
+    # Properties
+    def is_active(self) -> bool:
+        """
+        Determine whether the tracklet is active or not. Active means that the
+        tracklet existed for at least `active_steps` steps already.
+        """
+        return len(self.history) >= Tracklet.config["active_steps"]
+
+    def is_tracked(self) -> bool:
+        """
+        Determine whether the tracklet is tracked or not. Tracked means that the
+        tracklet has been associated to a detection in the last tracking step.
+        """
+        return self.history[-1]
+
+    def is_lost(self) -> bool:
+        """
+        Determine whether the tracklet is lost or not. Lost is the opposite of
+        tracked.
+        """
+        return not self.is_tracked()
+
+    def is_long_lost(self) -> bool:
+        """
+        Determine whether the tracklet is long lost or not. Long lost means that
+        the tracklet has been lost for the last `long_lost_steps` steps.
+        """
+        if len(self.history) < Tracklet.config["long_lost_steps"]:
+            return False
+        return np.all(~np.array(self.history)[-Tracklet.config["long_lost_steps"]:])
+
+    # Visualization
+    def show(self, num: Optional[int] = 50,
+             mean_state_color: Optional[NDArray] = np.array([0.5, 0.5, 0.5]),
+             **args) -> Axes:
+
+        args["alpha"] = 0.2 if self.is_active() else 0.01
+        args["show_text"] = False
+        axes = self.show_distribution(num, **args)
+
+        args["axes"] = axes
+        args["alpha"] = 0.8 if self.is_active() else 0.1
+        args["color"] = mean_state_color
+        args["show_text"] = True
+        axes = self.show_mean_state(**args)
+        return axes
+
+    def show_mean_state(self, alpha, **args) -> Axes:
+        bbox = self.bbox()
+        ax = bbox.show(alpha=alpha, **args)
+        ax.text(bbox.x + 0.5, bbox.y + 0.5, self.label, ha='left', va='top',
+                alpha=alpha, color="k", fontsize=15)
+        ax.scatter(self.state[Tracklet.X], self.state[Tracklet.Y], c='k', marker="+", alpha=alpha)
+        Tracklet._plot_velocity(self.state, ax)
+        return ax
+
+    def show_distribution(self, num: Optional[int] = 10, **args) -> Axes:
         bboxes = []
         discarded_trials = 0
         while len(bboxes) < num:
@@ -290,21 +354,13 @@ class Tracklet:
         return ax
 
 
-    def show_mean_state(self, **args) -> Axes:
-        ax = self.mean_state_bbox().show(**args)
-        ax.scatter(self.state[Tracklet.X], self.state[Tracklet.Y], c='k')
-        Tracklet._plot_velocity(self.state, ax)
-        return ax
-
-
     @staticmethod
     def _plot_velocity(state: NDArray, axes: Axes):
         x, y = state[Tracklet.X], state[Tracklet.Y]
         vx, vy = state[Tracklet.VX], state[Tracklet.VY]
         vw, vh = state[Tracklet.VW], state[Tracklet.VH]
-
         dt = 1
-        axes.scatter(x + vx * dt, y + vy * dt, c='g', s=50)
+
         # Velocity arrow
         arrow = FancyArrow(x, y, vx * dt, vy * dt, width=0.1, color='red',
                            length_includes_head=True, head_width=2, head_length=2, alpha=0.5)

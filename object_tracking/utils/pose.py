@@ -34,10 +34,10 @@ except ImportError:
 from scipy.spatial.transform import Rotation
 
 # Utils
-from .base import homogenized
+from base import homogenized
 
 # Logging
-from .loggers import get_logger
+from loggers import get_logger
 logger = get_logger(__name__)
 
 class Pose:
@@ -63,7 +63,7 @@ class Pose:
         assert R.shape == (3,3)
         assert np.abs(np.linalg.det(R) - 1) < tol
         assert np.all(np.abs((R.T @ R - np.eye(3))) < tol)
-        self.__R = R
+        self.__R = R.copy()
         self.__inverse = Pose._compute_inverse(self)
         self.__quat_wxyz = Rotation.from_matrix(self.R).as_quat()[[3, 0, 1, 2]]
 
@@ -73,7 +73,7 @@ class Pose:
         t = np.squeeze(np.array(t)).astype(float)
         assert t.shape == (3,)
         self.__t = t # t : 1D array (3,)
-        if hasattr(self, '__R'):
+        if hasattr(self, '_Pose__R'): # only if R is already set
             self.__inverse = Pose._compute_inverse(self)
 
     # Inverse computation
@@ -96,28 +96,52 @@ class Pose:
 
     # Inverse read-only error
     @staticmethod
-    def _inverse_readonly_error():
+    def _inverse_readonly_error(*args, **kwargs):
         logger.error(
             "Can't set the rotation matrix or the translation vector of the " +
-            "inverse of the Pose instace.")
+            "inverse of the Pose instance.")
         raise AttributeError(
             "Can't set the rotation matrix or the translation vector of the " +
-            "inverse of the Pose instace.")
+            "inverse of the Pose instance.")
 
     # Copy
     def copy(self) -> Pose:
         return Pose(self.R.copy(), self.t.copy())
 
+    # Equality
+    def __eq__(self, x):
+        if not isinstance(x, Pose):
+            return False
+
+        return np.abs(self.matrix - x.matrix).max() < 1e-8
 
     # Properties
     @property
     def R(self) -> NDArray:
-        return self.__R
+        """R: `NDArray(3,3)` rotation matrix"""
+        # Note: using pose.R[0, 0] = 7 will therefore have no effect, although
+        #       not raising any error...
+        return self.__R.copy()
+
+
+    @R.setter
+    def R(self, R: NDArray):
+        """Set the rotation matrix R"""
+        self.set_R(R)
 
 
     @property
     def t(self) -> NDArray:
-        return self.__t
+        """t: `NDArray(3,)` translation vector"""
+        # Note: using pose.t[0] = 7 will therefore have no effect, although not
+        #       raising any error...
+        return self.__t.copy()
+
+
+    @t.setter
+    def t(self, t: Union[NDArray, List]):
+        """Set the translation vector t"""
+        self.set_t(t)
 
 
     @property
@@ -134,6 +158,7 @@ class Pose:
 
     @property
     def inverse(self) -> Pose:
+        # Note: no copy here... so quite dangerous...
         return self.__inverse
 
 

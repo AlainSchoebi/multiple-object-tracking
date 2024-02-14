@@ -6,7 +6,7 @@ import numpy as np
 
 # Matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrow, FancyArrowPatch
+from matplotlib.patches import FancyArrow
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Python
@@ -26,7 +26,7 @@ from utils.loggers import get_logger
 logger = get_logger(__name__)
 
 
-class InteractiveTracker:
+class InteractiveSOT:
 
     default_tracklet = Tracklet.initiate_from_detection(Detection(40,40,20,20,"cat",0.9))
 
@@ -36,7 +36,7 @@ class InteractiveTracker:
     def __init__(self, tracklet = None):
 
         if tracklet is None:
-            tracklet = InteractiveTracker.default_tracklet.copy()
+            tracklet = InteractiveSOT.default_tracklet.copy()
 
         fig = plt.figure()
         ax = fig.add_subplot()
@@ -51,8 +51,8 @@ class InteractiveTracker:
         ax.invert_yaxis()
 
         legend_handles = [
-            plt.Rectangle((0, 0), 1, 1, fc=InteractiveTracker.state_color, ec=InteractiveTracker.state_color*0.7, lw=1),  # Blue rectangle for detections
-            plt.Rectangle((0, 0), 1, 1, fc=InteractiveTracker.detection_color, ec=InteractiveTracker.detection_color*0.7, lw=1)
+            plt.Rectangle((0, 0), 1, 1, fc=InteractiveSOT.state_color, ec=InteractiveSOT.state_color*0.7, lw=1),  # Blue rectangle for detections
+            plt.Rectangle((0, 0), 1, 1, fc=InteractiveSOT.detection_color, ec=InteractiveSOT.detection_color*0.7, lw=1)
         ]
 
         # Add the legend with custom handles and labels
@@ -64,7 +64,7 @@ class InteractiveTracker:
         self.start_point_draw = None
         self.rectangle = None
         self.tracklet.show(axes=self.ax, num=50, show_text=False)
-        self.tracklet.show_mean_state(axes=self.ax, show_text=False, color=InteractiveTracker.state_color, alpha=0.8)
+        self.tracklet.show_mean_state(axes=self.ax, show_text=False, color=InteractiveSOT.state_color, alpha=0.8)
         plt.draw()
 
         self.cid_press = ax.figure.canvas.mpl_connect('button_press_event', self.on_click)
@@ -108,8 +108,6 @@ class InteractiveTracker:
         for patch in self.ax.patches:
             if isinstance(patch, plt.Rectangle):
                 patch.remove()
-            if isinstance(patch, FancyArrowPatch):
-                patch.remove()
             if isinstance(patch, FancyArrow):
                 patch.remove()
         for text in self.ax.texts:
@@ -118,7 +116,7 @@ class InteractiveTracker:
                 collection.remove()
 
     def reset_tracklet(self):
-        self.tracklet = InteractiveTracker.default_tracklet.copy()
+        self.tracklet = InteractiveSOT.default_tracklet.copy()
         self.refresh()
 
     def prediction_step(self):
@@ -155,7 +153,7 @@ class InteractiveTracker:
         self.update_text()
         self.clear()
         self.tracklet.show(axes=self.ax, num=50, show_text=False)
-        self.tracklet.show_mean_state(axes=self.ax, show_text=False, color=InteractiveTracker.state_color, alpha=0.8)
+        self.tracklet.show_mean_state(axes=self.ax, show_text=False, color=InteractiveSOT.state_color, alpha=0.8)
         plt.draw()
 
 
@@ -199,7 +197,7 @@ class InteractiveTracker:
                 self.tracklet.update(detection)
 
                 self.refresh()
-                detection.show(axes=self.ax, show_text=False, color=InteractiveTracker.detection_color, alpha=0.8)
+                detection.show(axes=self.ax, show_text=False, color=InteractiveSOT.detection_color, alpha=0.8)
 
         elif event.button == 3:
             self.prediction_step()
@@ -216,3 +214,7 @@ class InteractiveTracker:
             self.prediction_step()
         elif event.char == 't':
             self.read_tracklet()
+
+
+if __name__ == "__main__":
+    InteractiveSOT()
