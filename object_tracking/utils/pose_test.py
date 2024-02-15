@@ -46,6 +46,38 @@ class TestPose(unittest.TestCase):
             np.testing.assert_array_almost_equal(Pose.from_quat_wxyz(pose.quat_wxyz * np.array([-1, 1, 1, 1])).R, pose.inverse.R)
             np.testing.assert_array_almost_equal(Pose.from_quat_xyzw(pose.quat_xyzw * np.array([1, 1, 1, -1])).R, pose.inverse.R)
 
+    def test_access_rights(self):
+
+        p = Pose()
+
+        with self.assertRaises(Exception): p.R = 9
+        with self.assertRaises(Exception): p.R[0,0] = 9
+        with self.assertRaises(Exception): p.R[0,0] *= 9
+        with self.assertRaises(Exception): p.t = 9
+        with self.assertRaises(Exception): p.t[0] = 9
+        with self.assertRaises(Exception): p.t[0] *= 9
+
+        R = p.R
+        t = p.t
+        with self.assertRaises(Exception): R[0,0] = 9
+        with self.assertRaises(Exception): t[0] = 9
+
+        p0 = Pose.from_rotation_angle_and_axis(1, np.array([1,1,1]))
+        R = p0.R
+        t = np.array([9, 8, 1])
+
+        p1 = Pose(R, t)
+        p2 = Pose(R)
+        p2.t = t
+        np.testing.assert_array_equal(p1.inverse.t, p2.inverse.t)
+
+        p3 = Pose(np.eye(3), t)
+        p4 = Pose(R, t)
+        p3.R = R
+        np.testing.assert_array_equal(p3.inverse.R, p4.inverse.R)
+        np.testing.assert_array_equal(p3.inverse.quat_wxyz, p4.inverse.quat_wxyz)
+        np.testing.assert_array_equal(p3.inverse.quat_xyzw, p4.inverse.quat_xyzw)
+
 
     if ROS_AVAILABLE:
         def test_ros(self):

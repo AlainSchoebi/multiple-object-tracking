@@ -1,40 +1,69 @@
 # Typing
 from __future__ import annotations
-from typing import List, NewType, Callable, Tuple
+from typing import List, NewType, Callable, Tuple, Dict, Optional
 
 # Numpy
 import numpy as np
 from numpy.typing import NDArray
 
+# Python
+import copy
+
 # Librairies
 import lap
 
 # Utils
-from bbox_tracking import LabeledBBox, Detection
+from utils.config import update_config_dict
 
 # Tracking
+from bbox_tracking import LabeledBBox, Detection
 from tracklet import Tracklet
 import metrics
 
 Matches = NewType("Matches", List[Tuple[Tracklet, Detection]])
 
 class Tracker:
+    """
+    Tracker class used for tracking BBoxes using a Kalman Filter.
+    """
 
     default_config = {
         "iou_threshold": {
-            "association_1": 0.4,
-            "association_2": 0.3
-        }
+            "association_1": float(0.4),
+            "association_2": float(0.3)
+        },
+        "tracklet_config": Tracklet.default_config
     }
 
-    def __init__(self, config = None):
 
-        self.config = config
-        if self.config is None:
-            self.config = Tracker.default_config.copy()
-
+    def __init__(self, config: Optional[Dict] = {}):
+        """
+        Default constructor of the `Tracker`.
+        """
         self.tracklets: List[Tracklet] = []
         self.ids_count = 0
+
+        self.config = copy.deepcopy(Tracker.default_config)
+        self.set_partial_config(config)
+
+
+    def set_partial_config(self, config: Dict):
+        """
+        Set partial configuration of the `Tracker`.
+
+        Inputs
+        - config: `Dict` partial configuration
+        """
+        update_config_dict(self.config, config, Tracker.default_config)
+        self._propagate_config_to_tracklets()
+
+
+    def _propagate_config_to_tracklets(self):
+        """
+        Propagate the configuration to the tracklets.
+        """
+        for tracklet in self.tracklets:
+            tracklet.set_partial_config(self.config["tracklet_config"])
 
 
     def predict(self) -> None:
@@ -45,7 +74,8 @@ class Tracker:
             tracklet.predict()
 
 
-    def associate_and_measurement_update(self, detections: List[Detection]):
+    def associate_and_measurement_update(self, detections: List[Detection]) \
+                                         -> None:
         """
         Associate the tracklets with the detections and update the tracklets
         through the measurement update of the Kalman Filter.
@@ -94,14 +124,20 @@ class Tracker:
 
         # Initiate new tracklets from unmatched detections
         for detection in unmatched_detections:
-            tracklet = Tracklet.initiate_from_detection(detection,
-                                                        label=self.ids_count)
+            tracklet = Tracklet.initiate_from_detection(
+                           detection, config=self.config["tracklet_config"],
+                           label=self.ids_count
+                       )
             self.ids_count += 1
             self.tracklets.append(tracklet)
 
 
-    def update(self, detections: List[Detection]):
-        # Predict step
+    def update(self, detections: List[Detection]) -> None:
+        """
+        Update the tracker with the new detections. This process includes the
+        prediction, association and measurement update steps.
+        """
+        # Prediction step
         self.predict()
 
         # Association and measurement update steps

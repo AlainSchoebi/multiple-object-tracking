@@ -14,6 +14,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter as tk
 from tkinter import ttk
 from tkinter import scrolledtext
+import yaml
 
 # Tracking
 from tracklet import Tracklet
@@ -83,7 +84,7 @@ class InteractiveMOT:
 
         btn_predict = tk.Button(self.root, text="Prediction Step (right click or P)", command=self.prediction_step)
         btn_match = tk.Button(self.root, text="Matching Step (M)", command=self.matching_step)
-        btn_reset = tk.Button(self.root, text="Reset (R)", command=self.reset_tracklets)
+        btn_reset = tk.Button(self.root, text="Reset (R)", command=self.reset)
         btn_read = tk.Button(self.root, text="Import Text (T)", command=self.read_tracklet)
 
         # Position the plot, text area, and buttons using the grid layout manager
@@ -137,8 +138,8 @@ class InteractiveMOT:
             tracklet.show(axes=self.ax, mean_state_color=InteractiveMOT.state_color)
         plt.draw()
 
-    def reset_tracklets(self):
-        self.tracker.tracklets = []
+    def reset(self):
+        self.tracker = Tracker()
         self.refresh()
 
     def prediction_step(self):
@@ -152,31 +153,38 @@ class InteractiveMOT:
         self.detections = []
 
     def read_tracklet(self):
-        """ TODO FUNCTION
-        text = self.text_area.get("1.0", tk.END)
-        lines = text.split("\n")
-        state_list = lines[2].replace("[","").replace("]","").strip().split(",")
-        state = np.array(state_list, dtype=float)
 
-        covariance_lists = []
-        for i in range(5,13):
-            line = lines[i].replace("[","").replace("]","").strip().split(",")
-            line = [float(x) for x in line if x != ""]
-            covariance_lists.append(line)
+        # Config read
+        config_id = self.notebook.tabs()[-1]
+        config_tab = self.notebook.nametowidget(config_id)
 
-        covariance = np.array(covariance_lists, dtype=float)
+        yaml_text = config_tab.text_area.get("1.0", tk.END)
+        loaded_data = yaml.safe_load(yaml_text)
 
-        self.tracklet.state = state
-        self.tracklet.covariance = covariance
+        self.tracker.set_partial_config(loaded_data)
 
-        for line in lines[15:]:
-            list = line.replace(" - ", "").strip().split(":")
-            if len(list) == 2:
-                key, value = list
-                Tracklet.set_config_arg(key, eval(value))
+        # Tracklets read
+        for i, tracklet in enumerate(self.tracker.tracklets):
+            tab = self.notebook.nametowidget(self.notebook.tabs()[i])
 
+            text = tab.text_area.get("1.0", tk.END)
+            lines = text.split("\n")
+            state_list = lines[2].replace("[","").replace("]","").strip().split(",")
+            state = np.array(state_list, dtype=float)
+
+            covariance_lists = []
+            for i in range(5,13):
+                line = lines[i].replace("[","").replace("]","").strip().split(",")
+                line = [float(x) for x in line if x != ""]
+                covariance_lists.append(line)
+
+            covariance = np.array(covariance_lists, dtype=float)
+
+            tracklet.state = state
+            tracklet.covariance = covariance
+
+        # Refresh
         self.refresh()
-        """
 
     def update_text(self):
 
@@ -204,7 +212,7 @@ class InteractiveMOT:
             tab.text_area.insert(tk.END, state_str)
             tab.text_area.insert(tk.END, " \n\nCovariance matrix:\n")
             tab.text_area.insert(tk.END, covariance_str)
-            tab.text_area.insert(tk.END, "\n\nHistory: (past --> present)\n")
+            tab.text_area.insert(tk.END, "\n\nDetections matched history: (past --> present)\n")
             tab.text_area.insert(tk.END, history_str)
 
         # Config tab
@@ -212,11 +220,10 @@ class InteractiveMOT:
         config_tab = self.notebook.nametowidget(config_id)
         self.notebook.tab(config_id, text="Config")
 
+        filtered_dict = filter_dict(self.tracker.config)
+        config = yaml.dump(filtered_dict, default_flow_style=False)
         config_tab.text_area.delete('1.0', tk.END)
-        config_tab.text_area.insert(tk.END, f"Config:\n")
-        for key, value in Tracklet.config.items():
-            if type(value) in [float, int, str]:
-                config_tab.text_area.insert(tk.END, f" - {key}: {value}\n")
+        config_tab.text_area.insert(tk.END, config)
 
     def on_click(self, event):
 
@@ -257,7 +264,7 @@ class InteractiveMOT:
             return
 
         if event.char == 'r':
-            self.reset_tracklets()
+            self.reset()
         elif event.char == 'p':
             self.prediction_step()
         elif event.char == 't':
@@ -265,6 +272,16 @@ class InteractiveMOT:
         elif event.char == 'm':
             self.matching_step()
 
+
+# Function to filter out numpy arrays from dictionary
+def filter_dict(d):
+    filtered = {}
+    for key, value in d.items():
+        if isinstance(value, (int, float, str)):
+            filtered[key] = value
+        elif isinstance(value, dict):
+            filtered[key] = filter_dict(value)
+    return filtered
 
 if __name__ == "__main__":
     InteractiveMOT()

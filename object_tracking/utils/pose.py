@@ -64,15 +64,17 @@ class Pose:
         assert np.abs(np.linalg.det(R) - 1) < tol
         assert np.all(np.abs((R.T @ R - np.eye(3))) < tol)
         self.__R = R.copy()
+        self.__R.flags.writeable = False # Make read-only
         self.__inverse = Pose._compute_inverse(self)
-        self.__quat_wxyz = Rotation.from_matrix(self.R).as_quat()[[3, 0, 1, 2]]
+        self.__quat_wxyz = Rotation.from_matrix(self.R.copy()).as_quat()[[3, 0, 1, 2]]
 
 
     def set_t(self, t: Union[NDArray, List]):
         """Set the translation vector t"""
         t = np.squeeze(np.array(t)).astype(float)
         assert t.shape == (3,)
-        self.__t = t # t : 1D array (3,)
+        self.__t = t.copy() # t : 1D array (3,)
+        self.__t.flags.writeable = False # Make read-only
         if hasattr(self, '_Pose__R'): # only if R is already set
             self.__inverse = Pose._compute_inverse(self)
 
@@ -86,7 +88,7 @@ class Pose:
         inv.__R = pose.R.T
         inv.__t = -pose.R.T @ pose.t
         inv.__inverse = pose
-        inv.__quat_wxyz = Rotation.from_matrix(pose.R.T).as_quat()[[3, 0, 1, 2]]
+        inv.__quat_wxyz = Rotation.from_matrix(pose.R.T.copy()).as_quat()[[3, 0, 1, 2]]
 
         # Prohibit editing the attributes of the inverse Pose
         inv.set_R = cls._inverse_readonly_error
@@ -115,13 +117,17 @@ class Pose:
 
         return np.abs(self.matrix - x.matrix).max() < 1e-8
 
-    # Properties
+    # Properties and setters
     @property
     def R(self) -> NDArray:
-        """R: `NDArray(3,3)` rotation matrix"""
-        # Note: using pose.R[0, 0] = 7 will therefore have no effect, although
-        #       not raising any error...
-        return self.__R.copy()
+        """
+        R: `NDArray(3,3)` rotation matrix
+
+        Note: this returns the actual reference to the .__R attribute. However,
+              the .__R attribute is set as read-only, so it should not be
+              possible to modify it.
+        """
+        return self.__R
 
 
     @R.setter
@@ -132,10 +138,14 @@ class Pose:
 
     @property
     def t(self) -> NDArray:
-        """t: `NDArray(3,)` translation vector"""
-        # Note: using pose.t[0] = 7 will therefore have no effect, although not
-        #       raising any error...
-        return self.__t.copy()
+        """
+        t: `NDArray(3,)` translation vector
+
+        Note: this returns the actual reference to the .__t attribute. However,
+              the .__t attribute is set as read-only, so it should not be
+              possible to modify it.
+        """
+        return self.__t
 
 
     @t.setter
@@ -146,13 +156,13 @@ class Pose:
 
     @property
     def Rt(self) -> NDArray:
-        """Get the 3x4 transformation matrix"""
+        """Get the `NDArray(3,4) transformation matrix"""
         return np.c_[self.R, self.t]
 
 
     @property
     def matrix(self) -> NDArray:
-        """Get the 4x4 transformation matrix"""
+        """Get the `NDArray(4,4)` transformation matrix"""
         return np.r_[self.Rt, np.array([[0, 0, 0, 1]])]
 
 
@@ -165,24 +175,30 @@ class Pose:
     @property
     def quat_xyzw(self) -> NDArray:
         """Get the quaternion representation of the rotation, as (x, y, z, w)"""
+
+        # TODO: temporary check
         q = self.__quat_wxyz[[1,2,3,0]]
-        q2 = Rotation.from_matrix(self.R).as_quat()
+        q2 = Rotation.from_matrix(self.R.copy()).as_quat()
         assert np.all(np.abs(q - q2) < 1e-8)
+
         return self.__quat_wxyz[[1,2,3,0]]
 
 
     @property
     def quat_wxyz(self) -> NDArray:
         """Get the quaternion representation of the rotation, as (w, x, y, z)"""
+
+        # TODO: temporary check
         q = self.__quat_wxyz
-        q2 = Rotation.from_matrix(self.R).as_quat()[[3, 0, 1, 2]]
+        q2 = Rotation.from_matrix(self.R.copy()).as_quat()[[3, 0, 1, 2]]
         assert np.all(np.abs(q - q2) < 1e-8)
+
         return self.__quat_wxyz
 
 
     # Methods
     def angle_axis(self) -> NDArray:
-        return Rotation.from_matrix(self.R).as_rotvec()
+        return Rotation.from_matrix(self.R.copy()).as_rotvec()
 
 
     def rotation_angle_and_axis(self) -> Tuple[float, NDArray]:
@@ -230,7 +246,8 @@ class Pose:
 
     @staticmethod
     def from_rotation_angle_and_axis(angle: float, axis: NDArray,
-                                     t: NDArray = np.zeros(3)) -> Pose:
+                                     t: Union[NDArray, List]= np.zeros(3)) \
+                                          -> Pose:
         """
         Get a Pose from a angle in RAD and a 3D axis vector.
 
@@ -245,7 +262,7 @@ class Pose:
 
     @staticmethod
     def from_rotation_vector(rot_vec: NDArray,
-                             t: NDArray = np.zeros(3)) -> Pose:
+                             t: Union[NDArray, List]= np.zeros(3)) -> Pose:
         """
         Get a Pose from a rotation vector that captures the axis and the angle
         through its norm.
@@ -255,25 +272,26 @@ class Pose:
 
 
     @staticmethod
-    def from_quat_wxyz(q: NDArray, t: NDArray = np.zeros(3),
-                       tol: float = 1e-12) -> Pose:
+    def from_quat_wxyz(q: Union[NDArray, List],
+                       t: Union[NDArray, List]= np.zeros(3)) -> Pose:
         """
         Get a Pose from quaternions q = (w, x, y, z) and a translation vector
         t = (x, y, z). The quaternion will be normalized.
         """
-        q = q.squeeze()
+        q = np.array(q).squeeze()
         assert q.shape == (4,)
         R = Rotation.from_quat([q[1], q[2], q[3], q[0]]).as_matrix() # function assumes quaternion (x, y, z, w)
         return Pose(R, t)
 
 
     @staticmethod
-    def from_quat_xyzw(q: NDArray, t: NDArray = np.zeros(3), tol: float = 1e-12) -> Pose:
+    def from_quat_xyzw(q: Union[NDArray, List],
+                       t: Union[NDArray, List] = np.zeros(3)) -> Pose:
         """ Get a Pose from quaternions q = (x, y, z, w) and a translation vector t = (x, y, z)
             The quaternion will be normalized. """
-        q = q.squeeze()
+        q = np.array(q).squeeze()
         assert q.shape == (4,)
-        return Pose.from_quat_wxyz(q[[3,0,1,2]], t, tol)
+        return Pose.from_quat_wxyz(q[[3,0,1,2]], t)
 
 
     @staticmethod
