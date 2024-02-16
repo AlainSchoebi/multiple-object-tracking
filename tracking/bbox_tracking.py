@@ -27,7 +27,7 @@ class LabeledBBox(BBox):
 
 class Detection(BBox):
     """
-    Detetion class that extends BBox with a label and a confidence score.
+    Detection class that extends BBox with a label and a confidence score.
     """
 
     def __init__(self, x:int, y: int, w: int, h: int,
