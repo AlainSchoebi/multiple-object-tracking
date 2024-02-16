@@ -1,9 +1,16 @@
 # Typing
-from typing import NewType, Tuple
+from typing import NewType, Tuple, Optional
 
 # Numpy
 import numpy as np
 from numpy.typing import NDArray
+
+# Scipy
+try:
+    import scipy
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
 
 # Types
 State = NewType("State", NDArray)
@@ -51,7 +58,9 @@ def prior_update(x_m: State, P_m: Covariance,
    return x_p, P_p
 
 def measurement_update(x_p: State, P_p: Covariance,
-                       z: NDArray, H: NDArray, R: Covariance) \
+                       z: NDArray, H: NDArray, R: Covariance,
+                       KALMAN_GAIN_FORM: Optional[bool] = True,
+                       JOSEPH_FORM: Optional[bool] = False) \
                          -> Tuple[State, Covariance]:
    """
    Measurement update of the Kalman Filter, also referred to as the a posteriori
@@ -69,6 +78,12 @@ def measurement_update(x_p: State, P_p: Covariance,
    - R:   `(m, m)` measurement noise covariance matrix, symmetric definite
           postive
 
+   Optional inputs
+   - KALMAN_GAIN_FORM: `bool` flag to use the Kalman gain form
+   - JOSEPH_FORM:      `bool` flag to use the Joseph form for the covariance
+                       update. This only works when using the `KALMAN_GAIN_FORM`
+                       form and improves numerical stability.
+
    Outputs
    - x_m: `(n, 1)` or `(n,)` a posteriori state estimate after employing the
            measurement z_k, i.e. x_{k|k}.
@@ -85,24 +100,49 @@ def measurement_update(x_p: State, P_p: Covariance,
           R.shape == (m, m) and \
           "Incorrect input shapes."
 
+   # Assertions
+   if np.abs(P_p.T - P_p).max() > 1e-10:
+       raise ValueError("The provided prior covariance matrix P_p is not " +
+                        "symmetric.")
+
+   if np.abs(R.T - R).max() > 1e-10:
+       raise ValueError("The provided measurement noise covariance matrix R " +
+                        " is not symmetric.")
+
    if np.linalg.det(P_p) < 1e-10:
        raise ValueError("The provided prior covariance matrix P_p is not " +
                         "is not invertible.")
 
-   try:
+   if np.linalg.det(R) < 1e-10:
+       raise ValueError("The provided measurement noise covariance matrix R " +
+                        " is not invertible.")
+
+   # Kalman gain form
+   if KALMAN_GAIN_FORM:
+
+       # Use Cholesky decomposition if scipy is available
+       if SCIPY_AVAILABLE:
+           HPHR_and_lower = scipy.linalg.cho_factor(H @ P_p @ H.T + R,
+                                                    check_finite=False)
+           K = scipy.linalg.cho_solve(HPHR_and_lower, b=(P_p @ H.T).T,
+                                      check_finite=False).T
+       else:
+           K = P_p @ H.T @ np.linalg.inv(H @ P_p @ H.T + R)
+
+       x_m = x_p + K @ (z - H @ x_p)
+
+       # Jospeh form (for numerical stability)
+       if JOSEPH_FORM:
+           P_m = (np.eye(n) - K @ H) @ P_p @ (np.eye(n) - K @ H).T + K @ R @ K.T
+       else:
+           P_m = (np.eye(n) - K @ H) @ P_p
+
+   # Direct form without computing the Kalman gain
+   else:
        R_inv = np.linalg.inv(R)
-   except:
-       raise ValueError("Provided measurement noise covariance matrix R " +
-                        "is not invertible.")
-
-   P_m_inv = H.T @ R_inv @ H + np.linalg.inv(P_p)
-
-   try:
+       P_m_inv = H.T @ R_inv @ H + np.linalg.inv(P_p)
        P_m = np.linalg.inv(P_m_inv)
-   except:
-       raise ValueError("The computed a posteriori covariance matrix is " +
-                        "not invertible.")
 
-   x_m = x_p + P_m @ H.T @ R_inv @ (z - H @ x_p)
+       x_m = x_p + P_m @ H.T @ R_inv @ (z - H @ x_p)
 
    return x_m, P_m

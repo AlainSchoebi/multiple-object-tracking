@@ -72,6 +72,7 @@ class InteractiveMOT:
     def init_tkinter(self):
         # Create the main window
         self.root = tk.Tk()
+        self.root.tk.call('tk', 'scaling', 1.5)
         self.root.title("Interactive MOT")
 
         # Create a canvas for the plot
@@ -112,7 +113,7 @@ class InteractiveMOT:
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text=title)
 
-        text_area = scrolledtext.ScrolledText(tab, wrap=tk.WORD, width=75, height=18)
+        text_area = scrolledtext.ScrolledText(tab, wrap=tk.WORD, width=75, height=16)
         text_area.pack(fill="both", expand=True)
         tab.text_area = text_area
 
