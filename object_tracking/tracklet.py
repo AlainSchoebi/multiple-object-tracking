@@ -73,6 +73,15 @@ class Tracklet:
                                kf_velocity_noise*width)^2,
                             (kf_init_velocity_noise_factor*
                                kf_velocity_noise*height)^2.
+
+    - confidence_reference: `float` in `[0, 1]` the reference confidence value
+                            used for adjusting the noise in the Kalman Filter
+                            depending on the confidence of the detection.
+    - noise_reduction_factor_at_full_confidence: `float` in `[0, 1]` the factor
+                            used for reducing the noise when the confidence of
+                            the detection is equal to 1. A factor of 1 means no
+                            noise reduction at all, so the confidence has no
+                            effect.
     - epsilon_size:         `float` the smallest value used for the BBoxes size
                             to avoid numerical issues.
     - active_steps:         `int` the number of steps during which a tracklet
@@ -94,6 +103,8 @@ class Tracklet:
         "kf_measurement_noise": float(0.05),
         "kf_init_position_noise_factor": 2,
         "kf_init_velocity_noise_factor": 10,
+        "confidence_reference": float(0.9), # in [0,1]
+        "noise_reduction_factor_at_full_confidence": float(0.5), # in [0,1]
         "epsilon_size": float(1.0),
         "active_steps": int(3),
         "long_lost_steps": int(5),
@@ -174,8 +185,19 @@ class Tracklet:
             init_vel_factor * self.config["kf_velocity_noise"] * w,
             init_vel_factor * self.config["kf_velocity_noise"] * h
         ]
-        # TODO depending on detection score
-        return np.diag(np.square(std))
+
+        cov = np.diag(np.square(std))
+        cov = self._ajust_covariance_to_confidence(cov, detection.confidence)
+        return cov
+
+
+    def _ajust_covariance_to_confidence(self, sigma: NDArray,
+                                        confidence: float) -> NDArray:
+
+          confidence_ref = self.config["confidence_reference"]
+          k = self.config["noise_reduction_factor_at_full_confidence"]
+          r = (confidence - confidence_ref) / (1 - confidence_ref) * (1 - k)
+          return sigma - r * sigma
 
 
     def set_partial_config(self, config: Dict):
@@ -281,6 +303,8 @@ class Tracklet:
             H = np.c_[np.eye(4), np.zeros((4,4))]
             R = np.diag([(k_m * w)**2, (k_m * h)**2,  # x, y
                          (k_m * w)**2, (k_m * h)**2]) # w, h
+
+            R = self._ajust_covariance_to_confidence(R, detection.confidence)
 
             # Assert that covariance is positive definite
             if np.linalg.det(self.covariance) < 1e-9:

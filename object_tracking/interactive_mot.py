@@ -14,7 +14,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter as tk
 from tkinter import ttk
 from tkinter import scrolledtext
+from tkinter import simpledialog
 import yaml
+import ast
+from collections import deque
 
 # Tracking
 from tracklet import Tracklet
@@ -33,6 +36,8 @@ class InteractiveMOT:
 
     detection_color = np.array([0.1,0.2,0.8])
     state_color = np.array([0.5,0.5,0.5])
+
+    default_confidence = 0.9
 
 
     def __init__(self):
@@ -142,6 +147,7 @@ class InteractiveMOT:
     def reset(self):
         self.tracker = Tracker()
         self.refresh()
+        self.detections = []
 
     def prediction_step(self):
         self.tracker.predict()
@@ -183,6 +189,9 @@ class InteractiveMOT:
 
             tracklet.state = state
             tracklet.covariance = covariance
+
+            history = ast.literal_eval(lines[15])
+            tracklet.history = deque(history, maxlen=tracklet.config["history_maxlen"])
 
         # Refresh
         self.refresh()
@@ -242,7 +251,7 @@ class InteractiveMOT:
                 end_point = (event.xdata, event.ydata)
 
                 bbox = BBox.from_two_corners(*self.start_point, *end_point)
-                detection = Detection.from_bbox(bbox, 'Detection', 1.0)
+                detection = Detection.from_bbox(bbox, 'Detection', InteractiveMOT.default_confidence)
 
                 self.detections.append(detection)
                 detection.show(axes=self.ax, show_text=False, color=InteractiveMOT.detection_color, alpha=0.8)
@@ -251,6 +260,16 @@ class InteractiveMOT:
                 self.start_point = None
                 plt.draw()
 
+                confidence = self.ask_for_confidence()
+                if confidence is None:
+                    self.detections.pop()
+                else:
+                    detection = self.detections[-1]
+                    detection.confidence = confidence
+                    self.ax.text(*detection.center(),
+                                 f"{detection.confidence:.2f}", fontsize=8,
+                                 color="white", va="center", ha="center")
+                    plt.draw()
 
         elif event.button == 2:
             self.matching_step()
@@ -273,6 +292,17 @@ class InteractiveMOT:
         elif event.char == 'm':
             self.matching_step()
 
+    def ask_for_confidence(self) -> float:
+        value = simpledialog.askfloat("Confidence Score",
+                                      "Enter confidence score:",
+                                       initialvalue=InteractiveMOT.default_confidence)
+        if value is None:
+            return None
+        value = float(value)
+        if value < 0 or value > 1:
+            del value
+            return self.ask_for_confidence()
+        return value
 
 # Function to filter out numpy arrays from dictionary
 def filter_dict(d):
