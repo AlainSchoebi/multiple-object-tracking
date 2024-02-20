@@ -430,6 +430,9 @@ class Tracklet:
             d = (d[1], -d[0])
 
 
+    def __repr__(self):
+        return self.__str__()
+
     def __str__(self):
         """
         Return the string representation of the `Tracklet`.

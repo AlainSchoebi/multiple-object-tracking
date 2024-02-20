@@ -1,6 +1,6 @@
 # Typing
 from __future__ import annotations
-from typing import Optional, Union, List, Tuple, Any
+from typing import Optional, List, Tuple, Any
 
 # Numpy
 import numpy as np
@@ -341,15 +341,17 @@ class BBox:
 
     # Visualization functions
     if MATPLOTLIB_AVAILABLE :
-        def show(self, axes: Optional[Axes] = None, **args) -> Axes:
+        def show(self, axes: Optional[Axes] = None,
+                       savefig: Optional[str] = None, **args) -> Axes:
             """
             Visualize the BBox in a matloptlib plot.
             """
-            return BBox.visualize(self, axes, **args)
+            return BBox.visualize(self, axes, savefig, **args)
 
         @staticmethod
-        def visualize(bboxes: Union[BBox, List[BBox]],
+        def visualize(bboxes: BBox | List[BBox],
                       axes: Optional[Axes] = None,
+                      savefig: Optional[str] = None,
                       show: Optional[bool] = True,
                       show_text: Optional[bool] = True,
                       color: Optional[NDArray] = None,
@@ -371,6 +373,11 @@ class BBox:
 
             if not type(bboxes) == list:
                 bboxes = [bboxes]
+
+            # Save figure   
+            if savefig is not None:
+                axes = None
+                show = False
 
             # No axes provided
             if axes is None:
@@ -430,5 +437,8 @@ class BBox:
 
                 # Show
                 if show: plt.show()
+            
+            if savefig:
+                fig.savefig(savefig)
 
             return ax

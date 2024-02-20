@@ -57,10 +57,11 @@ class InteractiveMOT:
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        ax.set_xlim(0, 100)
-        ax.set_ylim(0, 100)
         ax.xaxis.set_ticks_position('top')
         ax.xaxis.set_label_position('top')
+        ax.set_xlim(0, self.tracker.config["image_size"]["width"])
+        ax.set_ylim(0, self.tracker.config["image_size"]["height"])
+        ax.set_aspect('equal')
         ax.invert_yaxis()
 
         legend_handles = [
@@ -304,6 +305,7 @@ class InteractiveMOT:
         elif event.char == 'm':
             self.matching_step()
 
+
     def ask_for_confidence(self) -> float:
         value = simpledialog.askfloat(
             "Confidence Score", "Enter confidence score:",
@@ -317,6 +319,7 @@ class InteractiveMOT:
             return self.ask_for_confidence()
         return value
 
+
 # Function to filter out numpy arrays from dictionary
 def filter_dict(d):
     filtered = {}
@@ -326,6 +329,7 @@ def filter_dict(d):
         elif isinstance(value, dict):
             filtered[key] = filter_dict(value)
     return filtered
+
 
 if __name__ == "__main__":
     InteractiveMOT()

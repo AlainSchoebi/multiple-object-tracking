@@ -12,6 +12,16 @@ import copy
 # Librairies
 import lap
 
+# Matplotlib
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.axes import Axes
+    from matplotlib.legend_handler import HandlerPatch
+    from matplotlib.patches import FancyArrow, Rectangle
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+
 # Utils
 from utils.config import update_config_dict
 
@@ -31,6 +41,10 @@ class Tracker:
         "iou_threshold": {
             "association_1": float(0.4),
             "association_2": float(0.3)
+        },
+        "image_size": {
+            "width": 500,
+            "height": 100
         },
         "tracklet_config": Tracklet.default_config
     }
@@ -209,3 +223,83 @@ class Tracker:
         Note: these bounding boxes are different from the detections.
         """
         return [tracklet.labeled_bbox() for tracklet in self.tracklets]
+
+
+    if MATPLOTLIB_AVAILABLE:
+        def show(self, axes: Optional[Axes] = None,
+                       savefig: Optional[str] = None,
+                       show: Optional[bool] = True) -> Axes:
+            """
+            Show the current state of the tracker.
+            """
+
+            # Save figure
+            if savefig is not None:
+                axes = None
+                show = False
+
+            # Interactive mode
+            if show is False:
+                plt.ioff()
+
+            # No axes provided
+            if axes is None:
+                # Create figure
+                fig = plt.figure()
+                ax: Axes = fig.add_subplot()
+
+                # Title
+                ax.set_title(f"Tracker visualization with " +
+                             f"{len(self.tracklets)} tracklet" +
+                             f"{'s' if len(self.tracklets) > 1 else ''}")
+
+                # Axis labels
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+                ax.xaxis.set_ticks_position('top')
+                ax.xaxis.set_label_position('top')
+                ax.set_xlim(0, self.config["image_size"]["width"])
+                ax.set_ylim(0, self.config["image_size"]["height"])
+                ax.set_aspect('equal')
+                ax.invert_yaxis()
+
+                # Legend
+                def make_legend_arrow(legend, orig_handle, xdescent, ydescent,
+                                      width, height, fontsize) -> FancyArrow:
+                    return FancyArrow(0, 0.5 * height, width, 0,
+                                      length_includes_head=True,
+                                      head_width=0.75*height)
+
+                legend_handles = [
+                    Rectangle((0, 0), 1, 1, fc=np.full(3, 0.5),
+                              ec=0.7 * np.full(3, 0.5), lw=1),
+                    plt.scatter([], [], marker='+', color='k'),
+                    FancyArrow(0,0,1,1, color='r'),
+                    FancyArrow(0,0,1,1, color='k'),
+                ]
+                labels = ['Mean State', 'Center', 'Center Velocity',
+                          'Size Velocity']
+                handler_map = {
+                    FancyArrow: HandlerPatch(patch_func=make_legend_arrow),
+                }
+
+                ax.legend(legend_handles, labels, loc='lower right',
+                          handler_map=handler_map)
+
+            # Axes provided
+            else:
+                ax = axes
+
+            # Show the tracklets
+            for tracklet in self.tracklets:
+                tracklet.show(axes=ax)
+
+            # Show
+            if show:
+                plt.ion()
+                plt.show()
+
+            if savefig:
+                fig.savefig(savefig)
+
+            return ax
