@@ -2,7 +2,7 @@
 from typing import Dict
 
 # Logging
-from utils.loggers import get_logger
+from tracking.utils.loggers import get_logger
 logger = get_logger(__name__)
 
 def update_config_dict(config_to_update: Dict,

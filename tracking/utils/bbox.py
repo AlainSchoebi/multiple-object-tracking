@@ -319,24 +319,25 @@ class BBox:
 
 
     # Cython BBox
-    if CYTHON_BBOX_AVAILABLE:
-        @staticmethod
-        def iou(b_1: BBox, b_2: BBox) -> float:
-            """
-            Compute the Intersection-over-Union (IoU) between two BBoxes.
+    @staticmethod
+    def iou(b_1: BBox, b_2: BBox) -> float:
+        """
+        Compute the Intersection-over-Union (IoU) between two BBoxes.
 
-            Inputs
-            - b_1: `BBox`
-            - b_2: `BBox`
+        Inputs
+        - b_1: `BBox`
+        - b_2: `BBox`
 
-            Returns
-            - iou: `float` the IoU between BBox b_1 and BBox b_2
-            """
+        Returns
+        - iou: `float` the IoU between BBox b_1 and BBox b_2
+        """
+        if not CYTHON_BBOX_AVAILABLE:
+            raise ImportError("Cython BBox is not available.")
 
-            xyxy_1 = b_1.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
-            xyxy_2 = b_2.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
+        xyxy_1 = b_1.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
+        xyxy_2 = b_2.xyxy_array(mode=XYXYMode.PIXEL)[None, :]
 
-            return cython_bbox.bbox_overlaps(xyxy_1, xyxy_2)[0, 0]
+        return cython_bbox.bbox_overlaps(xyxy_1, xyxy_2)[0, 0]
 
 
     # Visualization functions
@@ -374,7 +375,7 @@ class BBox:
             if not type(bboxes) == list:
                 bboxes = [bboxes]
 
-            # Save figure   
+            # Save figure
             if savefig is not None:
                 axes = None
                 show = False
@@ -437,7 +438,7 @@ class BBox:
 
                 # Show
                 if show: plt.show()
-            
+
             if savefig:
                 fig.savefig(savefig)
 

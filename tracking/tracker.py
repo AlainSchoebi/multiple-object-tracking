@@ -23,12 +23,12 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 # Utils
-from utils.config import update_config_dict
+from tracking.utils.config import update_config_dict
 
 # Tracking
-from bbox_tracking import LabeledBBox, Detection
-from tracklet import Tracklet
-import metrics
+from tracking.bbox_tracking import LabeledBBox, Detection
+from tracking.tracklet import Tracklet
+import tracking.metrics as metrics
 
 Matches = NewType("Matches", List[Tuple[Tracklet, Detection]])
 

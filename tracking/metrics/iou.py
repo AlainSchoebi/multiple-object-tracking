@@ -9,11 +9,11 @@ from numpy.typing import NDArray
 import cython_bbox
 
 # Object Tracking
-from tracklet import Tracklet
+from tracking.tracklet import Tracklet
 
 # Utils
-from utils.bbox import XYXYMode
-from bbox_tracking import Detection
+from tracking.utils.bbox import XYXYMode
+from tracking.bbox_tracking import Detection
 
 def iou(tracklets: List[Tracklet], detections: List[Detection]) \
     -> NDArray:

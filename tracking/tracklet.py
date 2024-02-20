@@ -15,13 +15,13 @@ from matplotlib.axes import Axes
 from matplotlib.patches import FancyArrow
 
 # Utils
-import utils.kalman_filter as kf
-from utils.bbox import BBox, XYXYMode
-from utils.config import update_config_dict
+import tracking.utils.kalman_filter as kf
+from tracking.utils.bbox import BBox, XYXYMode
+from tracking.utils.config import update_config_dict
 
 # Tracking
-from bbox_tracking import Detection
-from bbox_tracking import LabeledBBox
+from tracking.bbox_tracking import Detection
+from tracking.bbox_tracking import LabeledBBox
 
 # Logging
 from utils.loggers import get_logger

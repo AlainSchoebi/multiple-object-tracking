@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 # Utils
-from utils.bbox import BBox
+from tracking.utils.bbox import BBox
 
 class LabeledBBox(BBox):
     """

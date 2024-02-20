@@ -20,14 +20,14 @@ import ast
 from collections import deque
 
 # Tracking
-from tracker import Tracker
+from tracking.tracker import Tracker
 
 # Utils
-from utils.bbox import BBox
-from bbox_tracking import Detection
+from tracking.utils.bbox import BBox
+from tracking.bbox_tracking import Detection
 
 # Logging
-from utils.loggers import get_logger
+from tracking.utils.loggers import get_logger
 logger = get_logger(__name__)
 
 
