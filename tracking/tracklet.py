@@ -24,7 +24,7 @@ from tracking.bbox_tracking import Detection
 from tracking.bbox_tracking import LabeledBBox
 
 # Logging
-from utils.loggers import get_logger
+from tracking.utils.loggers import get_logger
 logger = get_logger(__name__)
 
 class Tracklet:
