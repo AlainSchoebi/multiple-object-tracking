@@ -22,7 +22,8 @@ from collections import deque
 # Change directory for imports
 import sys
 #sys.path.insert(0, "/home/bmw/alain/inference_api/") # TODO
-sys.path.insert(0, "C:/Users/Q637136/src/inference_api") # TODO
+#sys.path.insert(0, "C:/Users/Q637136/src/inference_api") # TODO
+sys.path.insert(0, "C:/Users/alain/source/repos/object-tracking") # TODO
 
 # Tracking
 from tracking.tracker import Tracker
@@ -38,11 +39,7 @@ logger = get_logger(__name__)
 
 class InteractiveMOT:
 
-    detection_color = np.array([0.1,0.2,0.8])
-    state_color = np.array([0.5,0.5,0.5])
-
     default_confidence = 0.9
-
 
     def __init__(self):
 
@@ -57,10 +54,8 @@ class InteractiveMOT:
 
 
     def init_plot(self):
-        
-        ax = self.tracker.show(show=False)
 
-        ax.set_title("Interactive MOT")
+        ax = self.tracker.show(show=False, title="Interactive MOT")
 
         self.cid_press = ax.figure.canvas.mpl_connect('button_press_event',
                                                       self.on_click)
@@ -254,8 +249,7 @@ class InteractiveMOT:
                 )
 
                 self.detections.append(detection)
-                detection.show(axes=self.ax, show_text=False,
-                               color=InteractiveMOT.detection_color, alpha=0.8)
+                detection.show(axes=self.ax, show_text=False)
 
                 self.start_point_draw.remove()
                 self.start_point = None

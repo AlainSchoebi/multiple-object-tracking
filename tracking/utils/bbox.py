@@ -358,6 +358,7 @@ class BBox:
                       show_text: Optional[bool] = True,
                       color: Optional[NDArray] = None,
                       alpha: Optional[float] = None,
+                      only_borders: Optional[bool] = False,
                       **args) -> Axes:
             """
             Visualize a list of BBoxes in a matloptlib plot.
@@ -415,10 +416,13 @@ class BBox:
 
                 c = colors[i%len(colors)] if color is None else color
 
+                facecolor = c if not only_borders else 'none'
+
                 # Rectangle
                 rectangle = matplotlib.patches.Rectangle(
                     (bbox.x, bbox.y), bbox.w, bbox.h, alpha=alpha,
-                    edgecolor=np.array(c) * 0.7, facecolor=c,
+                    edgecolor=np.array(c) * 0.7, facecolor=facecolor,
+                    linewidth=3 if only_borders else 1
                    )
                 ax.add_patch(rectangle)
 

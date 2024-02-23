@@ -47,8 +47,8 @@ class Tracker:
         "tracklet_config": Tracklet.default_config,
         "visualization": {
             "image_size": {
-               "width": 500,
-               "height": 100
+               "width": 800,
+               "height": 500
             },
         },
     }

@@ -113,7 +113,8 @@ class Tracklet:
         "visualization":  {
             "n_frames_for_velocity": int(5),
             "mean_state_color": str("orange"),
-            "alpha": float(0.5)
+            "alpha": float(0.2),
+            "only_borders": bool(True),
         }
     }
 
@@ -380,12 +381,12 @@ class Tracklet:
     # Visualization
     def show(self, num: Optional[int] = 50, **args) -> Axes:
 
-        args["alpha"] = 0.2 if self.is_active() else 0.01
+        args["alpha"] = self.config["visualization"]["alpha"]/5
         args["show_text"] = False
         axes = self.show_distribution(num, **args)
 
         args["axes"] = axes
-#        args["alpha"] = self.config["visualization"]0.8 if self.is_active() else 0.1
+        args["alpha"] = self.config["visualization"]["alpha"]
         args["color"] = np.array(matplotlib.colors.to_rgb(
                             self.config["visualization"]["mean_state_color"]
                         ))
@@ -395,7 +396,8 @@ class Tracklet:
 
     def show_mean_state(self, alpha, **args) -> Axes:
         bbox = self.bbox()
-        ax = bbox.show(alpha=alpha, **args)
+        ax = bbox.show(alpha=alpha, only_borders=self.config["visualization"]
+                       ["only_borders"], **args)
         ax.text(bbox.x + 0.5, bbox.y + 0.5, self.id, ha='left', va='top',
                 alpha=alpha, color="k", fontsize=15)
         ax.scatter(self.state[Tracklet.X], self.state[Tracklet.Y],
@@ -420,7 +422,8 @@ class Tracklet:
                          f"discarded. Generate {discarded_trials + num} " +
                          f"samples to obtain {num} valid samples.")
 
-        ax = BBox.visualize(bboxes, **args)
+        ax = BBox.visualize(bboxes, only_borders=self.config["visualization"]
+                            ["only_borders"], **args)
         return ax
 
 
