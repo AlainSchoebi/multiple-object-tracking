@@ -18,12 +18,14 @@ try:
     from matplotlib.axes import Axes
     from matplotlib.legend_handler import HandlerPatch
     from matplotlib.patches import FancyArrow, Rectangle
+    import matplotlib.colors
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 # Utils
 from tracking.utils.config import update_config_dict
+from tracking.utils.bbox import BBox
 
 # Tracking
 from tracking.bbox_tracking import LabeledBBox, Detection
@@ -42,11 +44,13 @@ class Tracker:
             "association_1": float(0.4),
             "association_2": float(0.3)
         },
-        "image_size": {
-            "width": 500,
-            "height": 100
+        "tracklet_config": Tracklet.default_config,
+        "visualization": {
+            "image_size": {
+               "width": 500,
+               "height": 100
+            },
         },
-        "tracklet_config": Tracklet.default_config
     }
 
 
@@ -55,7 +59,7 @@ class Tracker:
         Default constructor of the `Tracker`.
         """
         self.tracklets: List[Tracklet] = []
-        self.ids_count = 0
+        self.id_count = 0
 
         self.config = copy.deepcopy(Tracker.default_config)
         self.set_partial_config(config)
@@ -89,10 +93,18 @@ class Tracker:
 
 
     def associate_and_measurement_update(self, detections: List[Detection]) \
-                                         -> None:
+                                         -> List[Tracklet]:
         """
         Associate the tracklets with the detections and update the tracklets
         through the measurement update of the Kalman Filter.
+
+        Inputs
+        - detections: list of `Detection`
+
+       Returns
+        - matched_tracklets: list of `Tracklet` associated to each detection
+
+        Note: the function returns a copy of the actual tracklets.
         """
 
         # Active and inactive tracklets
@@ -109,6 +121,7 @@ class Tracker:
         # Update the matched tracklets with detections (i.e. measurement update)
         for tracklet, detection in matches:
             tracklet.update(detection=detection)
+            detection.matched_tracklet = tracklet.copy()
 
         # Update the not-matched tracklets
         for tracklet in unmatched_active_tracklets:
@@ -123,6 +136,7 @@ class Tracker:
         # Update the matched tracklets with detections (i.e. measurement update)
         for tracklet, detection in matches:
             tracklet.update(detection=detection)
+            detection.matched_tracklet = tracklet.copy()
 
         # Remove inactive unmatched tracklets
         for tracklet in unmatched_inactive_tracklets:
@@ -140,22 +154,33 @@ class Tracker:
         for detection in unmatched_detections:
             tracklet = Tracklet.initiate_from_detection(
                            detection, config=self.config["tracklet_config"],
-                           label=self.ids_count
+                           id=self.id_count
                        )
-            self.ids_count += 1
+            self.id_count += 1
             self.tracklets.append(tracklet)
+            detection.matched_tracklet = tracklet.copy()
+
+        return [detection.matched_tracklet for detection in detections]
 
 
-    def update(self, detections: List[Detection]) -> None:
+    def update(self, detections: List[Detection]) -> List[Tracklet]:
         """
         Update the tracker with the new detections. This process includes the
         prediction, association and measurement update steps.
+
+        Inputs
+        - detections: list of `Detection`
+
+        Returns
+        - matched_tracklets: list of `Tracklet` associated to each detection
+
+        Note: the function returns a copy of the actual tracklets.
         """
         # Prediction step
         self.predict()
 
         # Association and measurement update steps
-        self.associate_and_measurement_update(detections)
+        return self.associate_and_measurement_update(detections)
 
 
     @staticmethod
@@ -217,18 +242,22 @@ class Tracker:
         return matches, unmatched_tracklets, unmatched_detections
 
 
-    def labeled_bboxes(self) -> List[LabeledBBox]:
+    def labeled_bboxes(self, only_active_tracklets: Optional[bool] = True) \
+          -> List[LabeledBBox]:
         """
         Return the labeled bounding boxes of the current tracklets.
         Note: these bounding boxes are different from the detections.
         """
-        return [tracklet.labeled_bbox() for tracklet in self.tracklets]
+        return [tracklet.labeled_bbox() for tracklet in self.tracklets
+                if not only_active_tracklets or tracklet.is_active()]
 
 
     if MATPLOTLIB_AVAILABLE:
         def show(self, axes: Optional[Axes] = None,
                        savefig: Optional[str] = None,
-                       show: Optional[bool] = True) -> Axes:
+                       show: Optional[bool] = True,
+                       image_overlay: Optional[NDArray] = None,
+                       title: Optional[str] = None) -> Axes:
             """
             Show the current state of the tracker.
             """
@@ -249,17 +278,20 @@ class Tracker:
                 ax: Axes = fig.add_subplot()
 
                 # Title
-                ax.set_title(f"Tracker visualization with " +
-                             f"{len(self.tracklets)} tracklet" +
-                             f"{'s' if len(self.tracklets) > 1 else ''}")
+                if title is None:
+                    title = f"Tracker visualization with " + \
+                            f"{len(self.tracklets)} tracklet" + \
+                            f"{'s' if len(self.tracklets) > 1 else ''}"
+                ax.set_title(title)
 
                 # Axis labels
                 ax.set_xlabel('x')
                 ax.set_ylabel('y')
                 ax.xaxis.set_ticks_position('top')
                 ax.xaxis.set_label_position('top')
-                ax.set_xlim(0, self.config["image_size"]["width"])
-                ax.set_ylim(0, self.config["image_size"]["height"])
+                image_size = self.config["visualization"]["image_size"]
+                ax.set_xlim(0, image_size["width"])
+                ax.set_ylim(0, image_size["height"])
                 ax.set_aspect('equal')
                 ax.invert_yaxis()
 
@@ -270,9 +302,13 @@ class Tracker:
                                       length_includes_head=True,
                                       head_width=0.75*height)
 
+                mean_state_color = np.array(matplotlib.colors.to_rgb(
+                    self.config["tracklet_config"]["visualization"] \
+                                                  ["mean_state_color"]
+                ))
                 legend_handles = [
-                    Rectangle((0, 0), 1, 1, fc=np.full(3, 0.5),
-                              ec=0.7 * np.full(3, 0.5), lw=1),
+                    Rectangle((0, 0), 1, 1, fc=mean_state_color,
+                              ec=0.7 * mean_state_color, lw=1),
                     plt.scatter([], [], marker='+', color='k'),
                     FancyArrow(0,0,1,1, color='r'),
                     FancyArrow(0,0,1,1, color='k'),
@@ -289,6 +325,10 @@ class Tracker:
             # Axes provided
             else:
                 ax = axes
+
+            # Image overlay
+            if image_overlay is not None:
+                ax.imshow(image_overlay, alpha=0.5)
 
             # Show the tracklets
             for tracklet in self.tracklets:

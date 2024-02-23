@@ -19,6 +19,11 @@ import yaml
 import ast
 from collections import deque
 
+# Change directory for imports
+import sys
+#sys.path.insert(0, "/home/bmw/alain/inference_api/") # TODO
+sys.path.insert(0, "C:/Users/Q637136/src/inference_api") # TODO
+
 # Tracking
 from tracking.tracker import Tracker
 
@@ -52,31 +57,16 @@ class InteractiveMOT:
 
 
     def init_plot(self):
-        fig = plt.figure()
-        ax = fig.add_subplot()
+        
+        ax = self.tracker.show(show=False)
 
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.xaxis.set_ticks_position('top')
-        ax.xaxis.set_label_position('top')
-        ax.set_xlim(0, self.tracker.config["image_size"]["width"])
-        ax.set_ylim(0, self.tracker.config["image_size"]["height"])
-        ax.set_aspect('equal')
-        ax.invert_yaxis()
-
-        legend_handles = [
-            plt.Rectangle((0, 0), 1, 1, fc=InteractiveMOT.state_color,
-                          ec=InteractiveMOT.state_color*0.7, lw=1),
-            plt.Rectangle((0, 0), 1, 1, fc=InteractiveMOT.detection_color,
-                          ec=InteractiveMOT.detection_color*0.7, lw=1)
-        ]
-        ax.legend(legend_handles, ['Mean State', 'Detections'],
-                  loc='lower right')
+        ax.set_title("Interactive MOT")
 
         self.cid_press = ax.figure.canvas.mpl_connect('button_press_event',
                                                       self.on_click)
-        self.fig = fig
+        self.fig = ax.get_figure()
         self.ax = ax
+
 
     def _init_tkinter(self):
         # Create the main window
@@ -145,9 +135,7 @@ class InteractiveMOT:
         self.start_point=None
         self.update_text()
         self.clear()
-        for tracklet in self.tracker.tracklets:
-            tracklet.show(axes=self.ax,
-                          mean_state_color=InteractiveMOT.state_color)
+        self.tracker.show(axes=self.ax, show=False)
         plt.draw()
 
     def reset(self):
@@ -213,7 +201,7 @@ class InteractiveMOT:
             self.remove_tab()
 
         for i, tracklet in enumerate(self.tracker.tracklets):
-            self.notebook.tab(i, text=f"{tracklet.label}")
+            self.notebook.tab(i, text=f"{tracklet.id}")
 
             state_str = np.array2string(
                 tracklet.state, precision=1, floatmode='fixed', separator=',',

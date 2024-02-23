@@ -254,7 +254,7 @@ class BBox:
 
     def xyxy_array(self, mode: XYXYMode = XYXYMode.NORMAL) -> NDArray:
         """
-        Returns a `NDArray(4,)` (x1, y1, x2, y1).
+        Returns a `NDArray(4,)` [x1, y1, x2, y1].
         """
         return np.array([*self.xyxy_tuple(mode=mode)])
 
@@ -286,7 +286,7 @@ class BBox:
 
     def center_wh_array(self, mode: XYXYMode = XYXYMode.NORMAL) -> NDArray:
         """
-        Returns a `NDArray(4,)` (x_center, y_center, w, h).
+        Returns a `NDArray(4,)` [x_center, y_center, w, h].
         """
         return np.array([*self.center_wh_tuple(mode=mode)])
 
@@ -296,7 +296,8 @@ class BBox:
         return self.__str__()
 
     def __str__(self) -> str:
-        return f"BBox(x={self.x}, y={self.y}, w={self.w}, h={self.h})"
+        return f"BBox(x={self.x:.1f}, y={self.y:.1f}, " + \
+               f"w={self.w:.1f}, h={self.h:.1f})"
 
 
     # Operators
@@ -356,7 +357,8 @@ class BBox:
                       show: Optional[bool] = True,
                       show_text: Optional[bool] = True,
                       color: Optional[NDArray] = None,
-                      alpha: Optional[float] = None) -> Axes:
+                      alpha: Optional[float] = None,
+                      **args) -> Axes:
             """
             Visualize a list of BBoxes in a matloptlib plot.
 

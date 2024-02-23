@@ -1,6 +1,6 @@
 # Typing
 from __future__ import annotations
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
 # Numpy
 import numpy as np
@@ -13,6 +13,7 @@ import copy
 # Matplotlib
 from matplotlib.axes import Axes
 from matplotlib.patches import FancyArrow
+import matplotlib.colors
 
 # Utils
 import tracking.utils.kalman_filter as kf
@@ -32,13 +33,15 @@ class Tracklet:
     Tracklet with state (x, y, w, h, vx, vy, vw, vh).
 
     Attributes
-    - state:      `NDArray(8,)` the state of the tracklet.
-    - covariance: `NDArray(8, 8)` the covariance matrix of the tracklet.
-    - label:      `Any` optional label of the tracklet.
-    - history:    `deque` the history of the tracklet. It contains `True` if the
-                  tracklet was associated to a detection at the corresponding
-                  time step, and `False` otherwise.
-    - config:     `Dict` the configuration of the tracklet. See below.
+    - state:          `NDArray(8,)` the state of the tracklet.
+    - covariance:     `NDArray(8, 8)` the covariance matrix of the tracklet.
+    - id:             `int` optional id of the tracklet.
+    - history:        `deque` the history of the tracklet. It contains `True` if
+                      the tracklet was associated to a detection at the
+                      corresponding time step, and `False` otherwise.
+    - last_detection: `Detection` last detection with which the tracklet was
+                      matched. Equals `None` if the tracklet was not matched.
+    - config:         `Dict` the configuration of the tracklet. See below.
 
     Configuration dictionary for the `Tracklet` class:
     - history_maxlen:       `int` the maximum length of the history.
@@ -107,17 +110,23 @@ class Tracklet:
         "epsilon_size": float(1.0),
         "active_steps": int(3),
         "long_lost_steps": int(5),
+        "visualization":  {
+            "n_frames_for_velocity": int(5),
+            "mean_state_color": str("orange"),
+            "alpha": float(0.5)
+        }
     }
 
 
     def __init__(self, config: Optional[Dict] = {},
-                 label: Optional[Any] = None):
+                 id: Optional[int] = None,
+                 last_detection: Optional[Detection] = None):
         """
         Default constructor of the `Tracklet` class.
 
         Inputs
         - config: `Dict` partial configuration of the tracklet.
-        - label:  `Any` optional label of the tracklet.
+        - id:     `int` optional id of the tracklet.
         """
 
         self.config = copy.deepcopy(Tracklet.default_config)
@@ -126,13 +135,14 @@ class Tracklet:
         self.history = deque(maxlen=self.config["history_maxlen"])
         self.state = np.array([])
         self.covariance = np.array([])
-        self.label = label
+        self.id = id
+        self.last_detection = last_detection
 
 
     @staticmethod
     def initiate_from_detection(detection: Detection,
                                 config: Optional[Dict] = {},
-                                label: Optional[Any] = None) -> Tracklet:
+                                id: Optional[int] = None) -> Tracklet:
         """
         Initiate a new `Tracklet` from a `Detection`.
         The state is set to the center, width, height of the detection, and 0
@@ -142,14 +152,14 @@ class Tracklet:
         Inputs
         - detection: `Detection` the detection to initiate the tracklet from.
         - config:    `Dict` partial configuration of the tracklet.
-        - label:     `Any` optional label of the tracklet.
+        - id:        `int` optional id of the tracklet.
 
         Returns
         - tracklet: `Tracklet` the initiated tracklet.
         """
 
         # New tracklet
-        tracklet = Tracklet(config=config, label=label)
+        tracklet = Tracklet(config=config, id=id)
 
         # State: center, w, h from detection, and 0 velocity
         tracklet.state = np.array([
@@ -164,6 +174,9 @@ class Tracklet:
 
         # History
         tracklet.history.append(True)
+
+        # Last detection
+        tracklet.last_detection = detection.copy()
 
         return tracklet
 
@@ -218,7 +231,7 @@ class Tracklet:
                                  maxlen=self.config["history_maxlen"])
         tracklet.state = np.copy(self.state)
         tracklet.covariance = np.copy(self.covariance)
-        tracklet.label = copy.deepcopy(self.label)
+        tracklet.id = copy.deepcopy(self.id)
         tracklet.config = copy.deepcopy(self.config)
         return tracklet
 
@@ -234,7 +247,7 @@ class Tracklet:
         """
         Return a `LabeledBBox` reprensenting the state of the tracklet.
         """
-        return LabeledBBox.from_bbox(self.bbox(), self.label)
+        return LabeledBBox.from_bbox(self.bbox(), self.id)
 
 
     def _check_state(self):
@@ -284,10 +297,13 @@ class Tracklet:
         self._check_state()
 
 
-    def update(self, detection: Detection):
+    def update(self, detection: Detection | None):
         """
         Update the state and covariance of the tracklet with a detection. It
-        also updates the history of the tracklet.
+        also updates the history and the last detection of the tracklet.
+
+        Note: the detection can also be `None`, in which case only the history
+              and the last detection of the tracklet are being updated.
 
         Inputs
         - detection: `Detection` the detection to update the tracklet with.
@@ -320,11 +336,13 @@ class Tracklet:
             self.state, self.covariance = x_m, P_m
             self._check_state()
 
-        # History
+        # History and last detection
         if detection is None:
             self.history.append(False)
+            self.last_detection = None
         else:
             self.history.append(True)
+            self.last_detection = detection.copy()
 
 
     # Status
@@ -360,17 +378,17 @@ class Tracklet:
 
 
     # Visualization
-    def show(self, num: Optional[int] = 50,
-             mean_state_color: Optional[NDArray] = np.array([0.5, 0.5, 0.5]),
-             **args) -> Axes:
+    def show(self, num: Optional[int] = 50, **args) -> Axes:
 
         args["alpha"] = 0.2 if self.is_active() else 0.01
         args["show_text"] = False
         axes = self.show_distribution(num, **args)
 
         args["axes"] = axes
-        args["alpha"] = 0.8 if self.is_active() else 0.1
-        args["color"] = mean_state_color
+#        args["alpha"] = self.config["visualization"]0.8 if self.is_active() else 0.1
+        args["color"] = np.array(matplotlib.colors.to_rgb(
+                            self.config["visualization"]["mean_state_color"]
+                        ))
         args["show_text"] = True
         axes = self.show_mean_state(**args)
         return axes
@@ -378,7 +396,7 @@ class Tracklet:
     def show_mean_state(self, alpha, **args) -> Axes:
         bbox = self.bbox()
         ax = bbox.show(alpha=alpha, **args)
-        ax.text(bbox.x + 0.5, bbox.y + 0.5, self.label, ha='left', va='top',
+        ax.text(bbox.x + 0.5, bbox.y + 0.5, self.id, ha='left', va='top',
                 alpha=alpha, color="k", fontsize=15)
         ax.scatter(self.state[Tracklet.X], self.state[Tracklet.Y],
                    c='k', marker="+", alpha=alpha)
@@ -410,12 +428,12 @@ class Tracklet:
         x, y = self.state[Tracklet.X], self.state[Tracklet.Y]
         vx, vy = self.state[Tracklet.VX], self.state[Tracklet.VY]
         vw, vh = self.state[Tracklet.VW], self.state[Tracklet.VH]
-        dt = 1
+        n_frames = self.config["visualization"]["n_frames_for_velocity"]
 
         # Position velocity arrow
-        arrow = FancyArrow(x, y, vx * dt, vy * dt, width=0.1, color='red',
-                           head_width=2, head_length=2, alpha=0.5,
-                           length_includes_head=True)
+        arrow = FancyArrow(x, y, vx * n_frames, vy * n_frames,
+                           width=0.1, color='red', head_width=2, head_length=2,
+                           alpha=0.5, length_includes_head=True)
         axes.add_patch(arrow)
 
         # Size velocity arrows
@@ -423,7 +441,8 @@ class Tracklet:
         d = (-1, -1)
         for corner in corners:
             arrow = FancyArrow(
-                corner[0], corner[1], vw * dt / 2 * d[0], vh * dt / 2 * d[1],
+                corner[0], corner[1],
+                vw * n_frames / 2 * d[0], vh * n_frames / 2 * d[1],
                 width=0.1, color='k', length_includes_head=True,
                 head_width=2, head_length=2, alpha=0.5)
             axes.add_patch(arrow)
