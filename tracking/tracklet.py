@@ -114,7 +114,7 @@ class Tracklet:
             "n_frames_for_velocity": int(5),
             "mean_state_color": str("orange"),
             "alpha": float(0.2),
-            "only_borders": bool(True),
+            "only_borders": bool(False),
         }
     }
 

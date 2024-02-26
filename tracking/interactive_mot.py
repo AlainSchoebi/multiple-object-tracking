@@ -41,13 +41,13 @@ class InteractiveMOT:
 
     default_confidence = 0.9
 
-    def __init__(self):
+    def __init__(self, tracker_config = {}):
 
         self.detections: List[Detection] = []
         self.start_point = None
         self.start_point_draw = None
 
-        self.tracker = Tracker()
+        self.tracker = Tracker(tracker_config)
 
         self.init_plot()
         self._init_tkinter()
