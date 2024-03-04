@@ -112,9 +112,13 @@ class Tracklet:
         "long_lost_steps": int(5),
         "visualization":  {
             "n_frames_for_velocity": int(5),
-            "mean_state_color": str("orange"),
-            "alpha": float(0.2),
+            "alpha": float(0.5),
             "only_borders": bool(False),
+            "inactive_color": str("black"),
+            "lost_color": str("darkred"),
+            "tracked_color": str("darkgreen"),
+            "velocity_color": str("red"),
+            "size_velocity_color": str("blue")
         }
     }
 
@@ -381,31 +385,36 @@ class Tracklet:
     # Visualization
     def show(self, num: Optional[int] = 50, **args) -> Axes:
 
-        args["alpha"] = self.config["visualization"]["alpha"]/5
+        if not self.is_active():
+            color = self.config["visualization"]["inactive_color"]
+        elif self.is_lost():
+            color = self.config["visualization"]["lost_color"]
+        else:
+            color = self.config["visualization"]["tracked_color"]       
+        color = np.array(matplotlib.colors.to_rgb(color))
+
         args["show_text"] = False
-        axes = self.show_distribution(num, **args)
+        if not hasattr(args, "colors"):
+            args["color"] = color
+        axes = self._show_distribution(num, **args)
 
         args["axes"] = axes
         args["alpha"] = self.config["visualization"]["alpha"]
-        args["color"] = np.array(matplotlib.colors.to_rgb(
-                            self.config["visualization"]["mean_state_color"]
-                        ))
-        args["show_text"] = True
-        axes = self.show_mean_state(**args)
+        axes = self._show_mean_state(**args)
         return axes
 
-    def show_mean_state(self, alpha, **args) -> Axes:
+    def _show_mean_state(self, alpha: float, color: NDArray, **args) -> Axes:
+        alpha = self.config["visualization"]["alpha"]
         bbox = self.bbox()
-        ax = bbox.show(alpha=alpha, only_borders=self.config["visualization"]
-                       ["only_borders"], **args)
-        ax.text(bbox.x + 0.5, bbox.y + 0.5, self.id, ha='left', va='top',
-                alpha=alpha, color="k", fontsize=15)
+        ax = bbox.show(alpha=alpha, only_borders=True, color=color*0.8, **args)
+        ax.text(bbox.x + 2/ax.figure.dpi, bbox.y + 2/ax.figure.dpi, self.id,
+                ha='left', va='top', alpha=alpha, color="k", fontsize=15)
         ax.scatter(self.state[Tracklet.X], self.state[Tracklet.Y],
-                   c='k', marker="+", alpha=alpha)
+                   color="k", marker="+", alpha=alpha)
         self._plot_velocity(ax)
         return ax
 
-    def show_distribution(self, num: Optional[int] = 10, **args) -> Axes:
+    def _show_distribution(self, num: Optional[int] = 10, **args) -> Axes:
         bboxes = []
         discarded_trials = 0
         while len(bboxes) < num:
@@ -422,8 +431,10 @@ class Tracklet:
                          f"discarded. Generate {discarded_trials + num} " +
                          f"samples to obtain {num} valid samples.")
 
+
+        alpha = self.config["visualization"]["alpha"]
         ax = BBox.visualize(bboxes, only_borders=self.config["visualization"]
-                            ["only_borders"], **args)
+                            ["only_borders"], alpha=alpha/num*1.5, **args)
         return ax
 
 
@@ -434,20 +445,23 @@ class Tracklet:
         n_frames = self.config["visualization"]["n_frames_for_velocity"]
 
         # Position velocity arrow
+        color = self.config["visualization"]["velocity_color"]
+        alpha = self.config["visualization"]["alpha"]
         arrow = FancyArrow(x, y, vx * n_frames, vy * n_frames,
-                           width=0.1, color='red', head_width=2, head_length=2,
-                           alpha=0.5, length_includes_head=True)
+                           width=0.6, color=color, head_width=8, head_length=8,
+                           alpha=alpha, length_includes_head=True)
         axes.add_patch(arrow)
 
         # Size velocity arrows
+        color = self.config["visualization"]["size_velocity_color"]
         corners = self.bbox().corners()
         d = (-1, -1)
         for corner in corners:
             arrow = FancyArrow(
                 corner[0], corner[1],
                 vw * n_frames / 2 * d[0], vh * n_frames / 2 * d[1],
-                width=0.1, color='k', length_includes_head=True,
-                head_width=2, head_length=2, alpha=0.5)
+                width=0.6, color=color, length_includes_head=True,
+                head_width=8, head_length=8, alpha=alpha)
             axes.add_patch(arrow)
             d = (d[1], -d[0])
 

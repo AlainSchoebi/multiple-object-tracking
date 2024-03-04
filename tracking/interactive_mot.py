@@ -18,11 +18,12 @@ from tkinter import simpledialog
 import yaml
 import ast
 from collections import deque
+from enum import Enum
 
 # Change directory for imports
 import sys
-#sys.path.insert(0, "/home/bmw/alain/inference_api/") # TODO
-#sys.path.insert(0, "C:/Users/Q637136/src/inference_api") # TODO
+sys.path.insert(0, "/home/bmw/alain/inference_api/") # TODO
+sys.path.insert(0, "C:/Users/Q637136/source/repos/inference_api") # TODO
 sys.path.insert(0, "C:/Users/alain/source/repos/object-tracking") # TODO
 
 # Tracking
@@ -37,26 +38,42 @@ from tracking.utils.loggers import get_logger
 logger = get_logger(__name__)
 
 
+# Function to filter out numpy arrays from dictionary
+def filter_dict(d):
+    filtered = {}
+    for key, value in d.items():
+        if isinstance(value, (int, float, str)):
+            filtered[key] = value
+        elif isinstance(value, dict):
+            filtered[key] = filter_dict(value)
+    return filtered
+
+
+class Mode(Enum):
+    SOT = 0
+    MOT = 1
+
+
 class InteractiveMOT:
 
     default_confidence = 0.9
 
-    def __init__(self, tracker_config = {}):
+    def __init__(self):
 
         self.detections: List[Detection] = []
         self.start_point = None
         self.start_point_draw = None
 
-        self.tracker = Tracker(tracker_config)
+        self.tracker = Tracker()
+        self.mode = Mode.MOT
 
-        self.init_plot()
+        self._init_plot()
         self._init_tkinter()
 
 
-    def init_plot(self):
+    def _init_plot(self):
 
-        ax = self.tracker.show(show=False, title="Interactive MOT")
-
+        ax = self.tracker.show(show=False, title="")
         self.cid_press = ax.figure.canvas.mpl_connect('button_press_event',
                                                       self.on_click)
         self.fig = ax.get_figure()
@@ -64,10 +81,10 @@ class InteractiveMOT:
 
 
     def _init_tkinter(self):
+
         # Create the main window
         self.root = tk.Tk()
         self.root.tk.call('tk', 'scaling', 1.5)
-        self.root.title("Interactive MOT")
 
         # Create a canvas for the plot
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
@@ -77,18 +94,26 @@ class InteractiveMOT:
         self.notebook = ttk.Notebook(self.root)
         self.tabs = []
 
-        btn_predict = tk.Button(self.root, text="Prediction Step (right click or P)", command=self.prediction_step)
-        btn_match = tk.Button(self.root, text="Matching Step (M)", command=self.matching_step)
-        btn_reset = tk.Button(self.root, text="Reset (R)", command=self.reset)
-        btn_read = tk.Button(self.root, text="Import Text (T)", command=self.read_tracklet)
+        # Buttons
+        btn_predict = tk.Button(self.root, text="Prediction Step (P)",
+                                command=self.prediction_step)
+        btn_match = tk.Button(self.root, text="Matching Step (M)",
+                              command=self.matching_step)
+        btn_reset = tk.Button(self.root, text="Reset (R)",
+                              command=self.reset)
+        btn_read = tk.Button(self.root, text="Import Text (T)",
+                             command=self.read_tracklet)
+        self.btn_switch = tk.Button(self.root, text="Switch to SOT (T)",
+                                    command=self.switch_mode)
 
-        # Position the plot, text area, and buttons using the grid layout manager
+        # Position the plot, text area, and buttons
         canvas_widget.grid(row=0, column=0, columnspan=3)
         btn_predict.grid(row=1, column=0, sticky="ew")
         btn_match.grid(row=1, column=1, sticky="ew")
         btn_reset.grid(row=1, column=2, sticky="ew")
         self.notebook.grid(row=2, column=0, columnspan=3, sticky="nsew")
-        btn_read.grid(row=3, column=0, columnspan=3, sticky="ew")
+        btn_read.grid(row=3, column=0, columnspan=2, sticky="ew")
+        self.btn_switch.grid(row=3, column=2, columnspan=1, sticky="ew")
 
         # Configure grid weights to allow text area to expand
         self.root.columnconfigure(0, weight=1)
@@ -101,7 +126,30 @@ class InteractiveMOT:
 
         # Run the GUI
         self.refresh()
+        self.refresh_mode()
         self.root.mainloop()
+
+
+    def switch_mode(self):
+        self.mode = Mode.MOT if self.mode == Mode.SOT else Mode.SOT
+
+        self.reset()
+        self.refresh_mode()
+
+
+    def refresh_mode(self):
+
+        if self.mode == Mode.SOT:
+            self.root.title("Interactive SOT")
+            self.ax.set_title("Interactive SOT")
+            self.btn_switch.config(text="Switch to MOT")
+        else:
+            self.root.title("Interactive MOT")
+            self.ax.set_title("Interactive MOT")
+            self.btn_switch.config(text="Switch to SOT")
+
+        plt.draw()
+
 
     def add_tab(self, title="NEW TAB"):
         tab = ttk.Frame(self.notebook)
@@ -126,27 +174,26 @@ class InteractiveMOT:
         for collection in self.ax.collections:
                 collection.remove()
 
-    def refresh(self):
+    def refresh(self, keep_detections=False):
         self.start_point=None
         self.update_text()
         self.clear()
         self.tracker.show(axes=self.ax, show=False)
+        if not keep_detections:
+            self.detections = []
         plt.draw()
 
     def reset(self):
         self.tracker = Tracker()
         self.refresh()
-        self.detections = []
 
     def prediction_step(self):
         self.tracker.predict()
         self.refresh()
-        self.detections = []
 
     def matching_step(self):
         self.tracker.associate_and_measurement_update(self.detections)
         self.refresh()
-        self.detections = []
 
     def read_tracklet(self):
 
@@ -249,7 +296,10 @@ class InteractiveMOT:
                 )
 
                 self.detections.append(detection)
-                detection.show(axes=self.ax, show_text=False)
+                color = self.tracker.config["visualization"] \
+                        ["detection_color"]["high_confidence"]
+                detection.show(axes=self.ax, show_text=False,
+                               color=color, linestyle="dashed")
 
                 self.start_point_draw.remove()
                 self.start_point = None
@@ -261,9 +311,12 @@ class InteractiveMOT:
                 else:
                     detection = self.detections[-1]
                     detection.confidence = confidence
-                    self.ax.text(*detection.center(),
-                                 f"{detection.confidence:.2f}", fontsize=8,
-                                 color="white", va="center", ha="center")
+                    self.ax.text(*detection.corners()[3],
+                                 f"({detection.confidence:.2f})", fontsize=8,
+                                 color="white", ha='right', va='bottom',
+                                 bbox=dict(facecolor=color, linewidth=0,
+                                           boxstyle="round, pad=-0.05")
+                            )
                     plt.draw()
 
         elif event.button == 2:
@@ -300,17 +353,6 @@ class InteractiveMOT:
             del value
             return self.ask_for_confidence()
         return value
-
-
-# Function to filter out numpy arrays from dictionary
-def filter_dict(d):
-    filtered = {}
-    for key, value in d.items():
-        if isinstance(value, (int, float, str)):
-            filtered[key] = value
-        elif isinstance(value, dict):
-            filtered[key] = filter_dict(value)
-    return filtered
 
 
 if __name__ == "__main__":

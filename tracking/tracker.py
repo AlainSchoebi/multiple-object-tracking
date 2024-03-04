@@ -24,8 +24,8 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 # Utils
-from tracking.utils.config import update_config_dict
 from tracking.utils.bbox import BBox
+from tracking.utils.config import update_config_dict
 
 # Tracking
 from tracking.bbox_tracking import LabeledBBox, Detection
@@ -36,20 +36,51 @@ Matches = NewType("Matches", List[Tuple[Tracklet, Detection]])
 
 class Tracker:
     """
-    Tracker class used for tracking BBoxes using a Kalman Filter.
+    Tracker class used for tracking BBoxes with a Kalman Filter.
+
+    Configuration dictionnary for the `Tracker`class:
+    - matching:
+        - low_confidence:    `float` the confidence threshold defining whether a
+                             `Detection` has a low or mid confidence.
+        - high_confidence:   `float` the confidence threshold defining whether a
+                             `Detection` has a mid or high confidence.
+        - association_1_iou: `float` the Intersection-over-Union (IoU) threshold
+                             used during the first association process, that is
+                             the association between all the high confidence
+                             detections and the active tracklets.
+        - association_2_iou: `float` the Intersection-over-Union (IoU) threshold
+                             used during the second association process, that is
+                             the association the mid confidence detections and
+                             the remaining active tracklets.
+        - association_3_iou: `float` the Intersection-over-Union (IoU) threshold
+                             used during the third association process, that is
+                             the association the remaining high confidence
+                             detections and the inactive tracklets.
+    - tracklet_config: `Dict` configuration dictionnary of all the `Tracklet`s
+                       belonging to this `Tracker`.
     """
 
+    # Configuration
     default_config = {
-        "iou_threshold": {
-            "association_1": float(0.4),
-            "association_2": float(0.3)
+        "matching": {
+            "low_confidence": float(0.3),
+            "high_confidence": float(0.7),
+            "association_1_iou": float(0.3),
+            "association_2_iou": float(0.3),
+            "association_3_iou": float(0.3)
+        },
+        "image_size": {
+               "width": 800,
+               "height": 500
         },
         "tracklet_config": Tracklet.default_config,
         "visualization": {
-            "image_size": {
-               "width": 800,
-               "height": 500
+            "detection_color": {
+                "low_confidence": str("gray"),
+                "mid_confidence": str("orangered"),
+                "high_confidence": str("orange")
             },
+            "show_last_detections": bool(True)
         },
     }
 
@@ -59,6 +90,7 @@ class Tracker:
         Default constructor of the `Tracker`.
         """
         self.tracklets: List[Tracklet] = []
+        self._last_detections = []
         self.id_count = 0
 
         self.config = copy.deepcopy(Tracker.default_config)
@@ -92,95 +124,126 @@ class Tracker:
             tracklet.predict()
 
 
+    def _detections_based_on_confidence(self, detections: List[Detection]) \
+        -> Tuple[List[Detection], List[Detection], List[Detection]]:
+        """
+        Split the detections based on their confidence into three lists using
+        the thresholds defined in the configuration.
+
+        Inputs
+        - detections: list of `Detection`
+
+        Returns
+        - low_detections:  list of `Detection` with low confidence
+        - mid_detections:  list of `Detection` with mid confidence
+        - high_detections: list of `Detection` with high confidence
+        """
+
+        low_detections, mid_detections, high_detections = [], [], []
+        for detection in detections:
+            if detection.confidence < self.config["matching"] \
+                                                 ["low_confidence"]:
+                low_detections.append(detection)
+            elif detection.confidence < self.config["matching"] \
+                                                   ["high_confidence"]:
+                mid_detections.append(detection)
+            else:
+                high_detections.append(detection)
+
+        return low_detections, mid_detections, high_detections
+
+
     def associate_and_measurement_update(self, detections: List[Detection]) \
-                                         -> List[Tracklet]:
+        -> None:
         """
         Associate the tracklets with the detections and update the tracklets
         through the measurement update of the Kalman Filter.
 
         Inputs
         - detections: list of `Detection`
-
-       Returns
-        - matched_tracklets: list of `Tracklet` associated to each detection
-
-        Note: the function returns a copy of the actual tracklets.
         """
 
-        # Active and inactive tracklets
+        # Save last detections for visualization
+        self._last_detections = [detection.copy() for detection in detections]
+
+        # Split detections based on their confidence
+        low_detections, mid_detections, high_detections = \
+            self._detections_based_on_confidence(detections)
+
+        # Split tracklets into active and inactive tracklets
         active_tracklets = \
            [tracklet for tracklet in self.tracklets if tracklet.is_active()]
         inactive_tracklets = \
            [tracklet for tracklet in self.tracklets if not tracklet.is_active()]
 
-        # Association 1 (active tracklets)
-        matches, unmatched_active_tracklets, unmatched_detections = \
-            Tracker.associate(active_tracklets, detections, metrics.iou,
-                              self.config["iou_threshold"]["association_1"])
+        # Association 1
+        # active tracklets <-> high confidence detections
+        matches, unmatched_active_tracklets, unmatched_high_detections = \
+            Tracker.associate(active_tracklets, high_detections, metrics.iou,
+                              self.config["matching"]["association_1_iou"])
 
         # Update the matched tracklets with detections (i.e. measurement update)
         for tracklet, detection in matches:
             tracklet.update(detection=detection)
-            detection.matched_tracklet = tracklet.copy()
 
-        # Update the not-matched tracklets
+        # Association 2
+        # remaining active tracklets <-> mid confidence detections
+        matches, unmatched_active_tracklets, _unmatched_mid_detections = \
+            Tracker.associate(unmatched_active_tracklets, mid_detections,
+                              metrics.iou,
+                              self.config["matching"]["association_2_iou"])
+
+        # Update the matched tracklets with detections (i.e. measurement update)
+        for tracklet, detection in matches:
+            tracklet.update(detection=detection)
+
+        # Update the unmatched active tracklets
         for tracklet in unmatched_active_tracklets:
             tracklet.update(detection=None)
 
-        # Association 2 (inactive tracklets)
-        matches, unmatched_inactive_tracklets, unmatched_detections = \
-            Tracker.associate(inactive_tracklets, unmatched_detections,
+        # Association 3
+        # inactive tracklets <-> remaining high confidence detections
+        matches, unmatched_inactive_tracklets, unmatched_high_detections = \
+            Tracker.associate(inactive_tracklets, unmatched_high_detections,
                               metrics.iou,
-                              self.config["iou_threshold"]["association_2"])
+                              self.config["matching"]["association_3_iou"])
 
         # Update the matched tracklets with detections (i.e. measurement update)
         for tracklet, detection in matches:
             tracklet.update(detection=detection)
-            detection.matched_tracklet = tracklet.copy()
 
         # Remove inactive unmatched tracklets
         for tracklet in unmatched_inactive_tracklets:
             self.tracklets.remove(tracklet)
 
         # Remove lost tracklets
-        for i in range(len(self.tracklets)):
-            if self.tracklets[i].is_long_lost():
-               self.tracklets[i] = None
-
-        # Remove None tracklets
-        self.tracklets = [t for t in self.tracklets if t is not None]
+        for tracklet in self.tracklets.copy():
+            if tracklet.is_long_lost():
+                self.tracklets.remove(tracklet)
 
         # Initiate new tracklets from unmatched detections
-        for detection in unmatched_detections:
+        for detection in unmatched_high_detections:
             tracklet = Tracklet.initiate_from_detection(
                            detection, config=self.config["tracklet_config"],
                            id=self.id_count
                        )
             self.id_count += 1
             self.tracklets.append(tracklet)
-            detection.matched_tracklet = tracklet.copy()
-
-        return [detection.matched_tracklet for detection in detections]
 
 
-    def update(self, detections: List[Detection]) -> List[Tracklet]:
+    def update(self, detections: List[Detection]) -> None:
         """
         Update the tracker with the new detections. This process includes the
         prediction, association and measurement update steps.
 
         Inputs
         - detections: list of `Detection`
-
-        Returns
-        - matched_tracklets: list of `Tracklet` associated to each detection
-
-        Note: the function returns a copy of the actual tracklets.
         """
         # Prediction step
         self.predict()
 
         # Association and measurement update steps
-        return self.associate_and_measurement_update(detections)
+        self.associate_and_measurement_update(detections)
 
 
     @staticmethod
@@ -242,22 +305,55 @@ class Tracker:
         return matches, unmatched_tracklets, unmatched_detections
 
 
-    def labeled_bboxes(self, only_active_tracklets: Optional[bool] = True) \
-          -> List[LabeledBBox]:
+    def get_bboxes(self, only_active_tracklets: Optional[bool] = True,
+                         crop_to_screen_size: Optional[bool] = True,
+                         return_tracklets_copy: Optional[bool] = False) \
+          -> List[LabeledBBox] | Tuple[List[LabeledBBox], List[Tracklet]]:
         """
-        Return the labeled bounding boxes of the current tracklets.
-        Note: these bounding boxes are different from the detections.
+        Return the labeled bounding boxes of the current tracklets (and a copy
+        of the tracklets).
+
+        Optional inputs
+        - only_active_tracklets: `bool` if `True`, only the active tracklets
+                                 are returned. Default is `True`.
+        - crop_to_screen_size:   `bool` if `True`, the bounding boxes are
+                                 cropped to the screen size. Default is `True`.
+        - return_tracklets_copy: `bool` if `True`, the method additionally
+                                 returns a copy of each `Tracklet` corresponding
+                                 to each bounding box. Default is `False`.
+
+        Note: these bounding boxes are different from the last detections.
         """
-        return [tracklet.labeled_bbox() for tracklet in self.tracklets
+        bboxes = [tracklet.labeled_bbox() for tracklet in self.tracklets
                 if not only_active_tracklets or tracklet.is_active()]
+        tracklets = [tracklet.copy() for tracklet in self.tracklets
+                if not only_active_tracklets or tracklet.is_active()]
+
+        if not crop_to_screen_size:
+            return (bboxes, tracklets) if return_tracklets_copy else bboxes
+
+        screen_box = BBox(0, 0, self.config["image_size"]["width"],
+                                self.config["image_size"]["height"])
+        cropped_bboxes = []
+        for bbox in bboxes:
+            if BBox.intersect(bbox, screen_box):
+                cropped_bbox = LabeledBBox.from_bbox(
+                    BBox.intersection(bbox, screen_box, intersect_check=False),
+                    label=bbox.label
+                )
+                cropped_bboxes.append(cropped_bbox)
+
+        return (bboxes, tracklets) if return_tracklets_copy else bboxes
 
 
     if MATPLOTLIB_AVAILABLE:
         def show(self, axes: Optional[Axes] = None,
                        savefig: Optional[str] = None,
+                       dpi: Optional[int] = 100,
                        show: Optional[bool] = True,
                        image_overlay: Optional[NDArray] = None,
-                       title: Optional[str] = None) -> Axes:
+                       title: Optional[str] = None,
+                       title_fontsize: Optional[float] = 14) -> Axes:
             """
             Show the current state of the tracker.
             """
@@ -282,14 +378,14 @@ class Tracker:
                     title = f"Tracker visualization with " + \
                             f"{len(self.tracklets)} tracklet" + \
                             f"{'s' if len(self.tracklets) > 1 else ''}"
-                ax.set_title(title)
+                ax.set_title(title, fontsize=title_fontsize)
 
                 # Axis labels
                 ax.set_xlabel('x')
                 ax.set_ylabel('y')
                 ax.xaxis.set_ticks_position('top')
                 ax.xaxis.set_label_position('top')
-                image_size = self.config["visualization"]["image_size"]
+                image_size = self.config["image_size"]
                 ax.set_xlim(0, image_size["width"])
                 ax.set_ylim(0, image_size["height"])
                 ax.set_aspect('equal')
@@ -302,19 +398,28 @@ class Tracker:
                                       length_includes_head=True,
                                       head_width=0.75*height)
 
-                mean_state_color = np.array(matplotlib.colors.to_rgb(
+                tracklet_state_color = np.array(matplotlib.colors.to_rgb(
                     self.config["tracklet_config"]["visualization"] \
-                                                  ["mean_state_color"]
+                                                  ["tracked_color"]
                 ))
+                detection_color = np.array(matplotlib.colors.to_rgb(
+                    self.config["visualization"]["detection_color"]
+                                                ["high_confidence"]
+                ))
+
                 legend_handles = [
-                    Rectangle((0, 0), 1, 1, fc=mean_state_color,
-                              ec=0.7 * mean_state_color, lw=1),
+                    Rectangle((0, 0), 1, 1, fc="none",
+                              ec=detection_color, lw=1.5, linestyle="dashed"),
+                    Rectangle((0, 0), 1, 1, fc=tracklet_state_color,
+                              ec=0.7 * tracklet_state_color, lw=1),
                     plt.scatter([], [], marker='+', color='k'),
-                    FancyArrow(0,0,1,1, color='r'),
-                    FancyArrow(0,0,1,1, color='k'),
+                    FancyArrow(0,0,1,1, color=self.config["tracklet_config"]
+                               ["visualization"]["velocity_color"]),
+                    FancyArrow(0,0,1,1, color=self.config["tracklet_config"]
+                               ["visualization"]["size_velocity_color"]),
                 ]
-                labels = ['Mean State', 'Center', 'Center Velocity',
-                          'Size Velocity']
+                labels = ['Detection', 'State', 'Center',
+                          'Center Velocity', 'Size Velocity']
                 handler_map = {
                     FancyArrow: HandlerPatch(patch_func=make_legend_arrow),
                 }
@@ -334,12 +439,47 @@ class Tracker:
             for tracklet in self.tracklets:
                 tracklet.show(axes=ax)
 
+            # Show the last detections
+            if self.config["visualization"]["show_last_detections"]:
+
+                for detection in self._last_detections:
+
+                    if detection.confidence < self.config["matching"] \
+                                                          ["low_confidence"]:
+                        color = np.array(matplotlib.colors.to_rgb(
+                            self.config["visualization"]["detection_color"]
+                                                        ["low_confidence"])
+                        )
+                    elif detection.confidence < self.config["matching"] \
+                                                           ["high_confidence"]:
+                        color = np.array(matplotlib.colors.to_rgb(
+                            self.config["visualization"]["detection_color"]
+                                                        ["mid_confidence"])
+                        )
+                    else:
+                        color = np.array(matplotlib.colors.to_rgb(
+                            self.config["visualization"]["detection_color"]
+                                                        ["high_confidence"])
+                        )
+
+                    detection.show(axes=ax, color=color, show_text=False,
+                                   only_borders=True, linewidth=1.5,
+                                   linestyle="dashed", alpha=1)
+
+                    ax.text(*detection.corners()[3],
+                            f"({detection.confidence:.2f})", fontsize=8,
+                            color="white", ha='right', va='bottom',
+                            bbox=dict(facecolor=color, linewidth=0,
+                                      boxstyle="round, pad=-0.05")
+                            )
             # Show
             if show:
                 plt.ion()
                 plt.show()
 
+            # Save figure
             if savefig:
-                fig.savefig(savefig)
+                fig.savefig(savefig, dpi=dpi)
+                plt.close(fig)
 
             return ax
