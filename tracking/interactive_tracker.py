@@ -10,21 +10,15 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrow
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# Python
+# Tkinter
 import tkinter as tk
-from tkinter import ttk
-from tkinter import scrolledtext
-from tkinter import simpledialog
+from tkinter import ttk, scrolledtext, simpledialog
+
+# Python
 import yaml
 import ast
 from collections import deque
 from enum import Enum
-
-# Change directory for imports
-import sys
-sys.path.insert(0, "/home/bmw/alain/inference_api/") # TODO
-sys.path.insert(0, "C:/Users/Q637136/source/repos/inference_api") # TODO
-sys.path.insert(0, "C:/Users/alain/source/repos/object-tracking") # TODO
 
 # Tracking
 from tracking.tracker import Tracker
@@ -54,7 +48,7 @@ class Mode(Enum):
     MOT = 1
 
 
-class InteractiveMOT:
+class InteractiveTracker:
 
     default_confidence = 0.9
 
@@ -67,6 +61,8 @@ class InteractiveMOT:
         self.tracker = Tracker()
         self.mode = Mode.MOT
 
+        self.window_closed = False
+
         self._init_plot()
         self._init_tkinter()
 
@@ -78,7 +74,6 @@ class InteractiveMOT:
                                                       self.on_click)
         self.fig = ax.get_figure()
         self.ax = ax
-
 
     def _init_tkinter(self):
 
@@ -136,6 +131,17 @@ class InteractiveMOT:
         self.reset()
         self.refresh_mode()
 
+        if self.mode == Mode.SOT:
+            self.tracker.set_partial_config(
+                {
+                    "matching": {
+                        "association_1_iou": float(0.0),
+                        "association_2_iou": float(0.0),
+                        "association_3_iou": float(0.0)
+                    },
+                }
+            )
+        self.refresh()
 
     def refresh_mode(self):
 
@@ -160,8 +166,10 @@ class InteractiveMOT:
         text_area.pack(fill="both", expand=True)
         tab.text_area = text_area
 
+
     def remove_tab(self):
         self.notebook.forget(self.notebook.tabs()[-1])
+
 
     def clear(self):
         for patch in self.ax.patches:
@@ -174,6 +182,7 @@ class InteractiveMOT:
         for collection in self.ax.collections:
                 collection.remove()
 
+
     def refresh(self, keep_detections=False):
         self.start_point=None
         self.update_text()
@@ -183,17 +192,21 @@ class InteractiveMOT:
             self.detections = []
         plt.draw()
 
+
     def reset(self):
         self.tracker = Tracker()
         self.refresh()
+
 
     def prediction_step(self):
         self.tracker.predict()
         self.refresh()
 
+
     def matching_step(self):
         self.tracker.associate_and_measurement_update(self.detections)
         self.refresh()
+
 
     def read_tracklet(self):
 
@@ -232,6 +245,7 @@ class InteractiveMOT:
 
         # Refresh
         self.refresh()
+
 
     def update_text(self):
 
@@ -274,6 +288,27 @@ class InteractiveMOT:
         config_tab.text_area.delete('1.0', tk.END)
         config_tab.text_area.insert(tk.END, config)
 
+
+    def draw_detections(self):
+        self.refresh(keep_detections=True)
+
+        color = self.tracker.config["visualization"] \
+                                       ["detection_color"]["high_confidence"]
+
+        for detection in self.detections:
+            self.ax.text(*detection.corners()[3],
+                f"({detection.confidence:.2f})", fontsize=8,
+                color="white", ha='right', va='bottom',
+                bbox=dict(facecolor=color, linewidth=0,
+                boxstyle="round, pad=-0.05")
+            )
+
+            detection.show(axes=self.ax, show_text=False,
+                color=color, linestyle="dashed")
+
+        plt.draw()
+
+
     def on_click(self, event):
 
         if event.inaxes != self.ax:
@@ -292,32 +327,47 @@ class InteractiveMOT:
 
                 bbox = BBox.from_two_corners(*self.start_point, *end_point)
                 detection = Detection.from_bbox(
-                    bbox, 'Detection', InteractiveMOT.default_confidence
+                    bbox, 'Detection', InteractiveTracker.default_confidence
                 )
 
-                self.detections.append(detection)
-                color = self.tracker.config["visualization"] \
-                        ["detection_color"]["high_confidence"]
-                detection.show(axes=self.ax, show_text=False,
-                               color=color, linestyle="dashed")
+                SOT_removed_detections = False
+                if self.mode == Mode.SOT:
+                    if len(self.detections) > 0:
+                        SOT_removed_detections = True
+                    self.detections = [detection]
+                else:
+                    self.detections.append(detection)
 
                 self.start_point_draw.remove()
                 self.start_point = None
+
+                color = self.tracker.config["visualization"] \
+                                       ["detection_color"]["high_confidence"]
+
+                detection.show(axes=self.ax, show_text=False,
+                    color=color, linestyle="dashed")
                 plt.draw()
 
                 confidence = self.ask_for_confidence()
                 if confidence is None:
                     self.detections.pop()
+                    self.refresh(keep_detections=True)
+                    self.draw_detections()
                 else:
                     detection = self.detections[-1]
                     detection.confidence = confidence
-                    self.ax.text(*detection.corners()[3],
-                                 f"({detection.confidence:.2f})", fontsize=8,
-                                 color="white", ha='right', va='bottom',
-                                 bbox=dict(facecolor=color, linewidth=0,
-                                           boxstyle="round, pad=-0.05")
-                            )
-                    plt.draw()
+
+                    if self.mode == Mode.SOT and SOT_removed_detections:
+                        self.refresh(keep_detections=True)
+                        self.draw_detections()
+                    else:
+                        self.ax.text(*detection.corners()[3],
+                            f"({detection.confidence:.2f})", fontsize=8,
+                            color="white", ha='right', va='bottom',
+                            bbox=dict(facecolor=color, linewidth=0,
+                            boxstyle="round, pad=-0.05")
+                        )
+                        plt.draw()
 
         elif event.button == 2:
             self.matching_step()
@@ -344,7 +394,7 @@ class InteractiveMOT:
     def ask_for_confidence(self) -> float:
         value = simpledialog.askfloat(
             "Confidence Score", "Enter confidence score:",
-            initialvalue=InteractiveMOT.default_confidence
+            initialvalue=InteractiveTracker.default_confidence
         )
         if value is None:
             return None
@@ -356,4 +406,4 @@ class InteractiveMOT:
 
 
 if __name__ == "__main__":
-    InteractiveMOT()
+    InteractiveTracker()
