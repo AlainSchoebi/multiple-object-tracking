@@ -343,7 +343,10 @@ class Tracker:
                 )
                 cropped_bboxes.append(cropped_bbox)
 
-        return (bboxes, tracklets) if return_tracklets_copy else bboxes
+        if return_tracklets_copy:
+            return (cropped_bboxes, tracklets)
+        else:
+            return cropped_bboxes
 
 
     if MATPLOTLIB_AVAILABLE:
