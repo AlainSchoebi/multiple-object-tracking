@@ -68,7 +68,7 @@ class Detection(BBox):
     def from_yolo_format(bboxes: NDArray, scores: NDArray) -> List[Detection]:
         """
         Create a list of `Detection` from bounding boxes in the YOLO format.
-        
+
         Inputs
         - bboxes: `NDArray(n, 4)` bounding boxes array in xyxy format
         - scores: `NDArray(n)` confidence score array for each bounding box
@@ -85,7 +85,7 @@ class Detection(BBox):
             bbox = BBox.from_xyxy(*bbox_data)
             detection = Detection.from_bbox(bbox, label=None, confidence=score)
             detections.append(detection)
-        
+
         return detections
 
     def __repr__(self):
