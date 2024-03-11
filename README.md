@@ -59,7 +59,7 @@ tracker.show(savefig="tracker_2.png")
 
 ### State
 
-The state is represented by a $\R^8$ vector $\mathbf x$. The state captures the position $(x, y)$ and size $(w, h)$  of the bounding box as well as their time deriatives $(\dot x, \dot y)$ and $(\dot w, \dot h)$:
+The state is represented by a $\mathbb{R}^8$ vector $\mathbf x$. The state captures the position $(x, y)$ and size $(w, h)$  of the bounding box as well as their time deriatives $(\dot x, \dot y)$ and $(\dot w, \dot h)$:
 
 $$
 \mathbf{x} = (x, y, w, h, \dot x, \dot y, \dot w, \dot h)^\top
