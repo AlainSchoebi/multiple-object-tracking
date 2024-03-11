@@ -21,6 +21,11 @@ from tracking import InteractiveTracker
 InteractiveTracker()
 ```
 
+Or alternatively, run:
+```bash
+python -m tracking.interactive_tracker
+```
+
 ### Example usage
 
 Run the following lines with Python:

@@ -445,7 +445,8 @@ class Tracker:
             # Show the last detections
             if self.config["visualization"]["show_last_detections"]:
 
-                for detection in self._last_detections:
+                for detection in sorted(self._last_detections,
+                                        key=lambda d: d.confidence):
 
                     if detection.confidence < self.config["matching"] \
                                                           ["low_confidence"]:

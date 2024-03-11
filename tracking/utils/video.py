@@ -1,9 +1,10 @@
 # Typing
-from typing import List, Union
+from typing import List, Any
 
 # Python
 from tqdm import tqdm
 from pathlib import Path
+import re
 
 # OpenCV
 try:
@@ -14,6 +15,28 @@ except ImportError:
 
 from tracking.utils.loggers import get_logger
 logger = get_logger(__name__)
+
+def sorted_nicely(l: List[Any]) -> List[Any]:
+    """
+    Sort the given list in the way that humans expect.
+
+    Input
+    - l: `List[Any]` the list to be sorted.
+
+    Return
+    - `List[Any]` the sorted list.
+    """
+    def tryint(s):
+        try:
+            return int(s)
+        except:
+            return s
+
+    def alphanum_key(s):
+        return [tryint(c) for c in re.split('([0-9]+)', str(s))]
+
+    return sorted(l, key=alphanum_key)
+
 
 if OPENCV_AVAILABLE:
     def generate_video(images: List[Path] | List[str],
@@ -43,9 +66,10 @@ if OPENCV_AVAILABLE:
         video.release()
         logger.info(f"Successfully generated video with {len(images)} frames to '{video_filename}'.")
 
+
     def generate_video_from_folder(folder: Path | str,
                                    video_filename: Path | str,
                                    image_extension: str = ".png",
                                    frame_rate: int = 5) -> None:
-        generate_video(sorted(list(Path(folder).glob(f"*{image_extension}"))), 
-                       video_filename, frame_rate=frame_rate)
+        images = sorted_nicely(list(Path(folder).glob(f"*{image_extension}")))
+        generate_video(images, video_filename, frame_rate=frame_rate)
