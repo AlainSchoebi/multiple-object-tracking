@@ -50,12 +50,13 @@ class Tracker:
                              detections and the active tracklets.
         - association_2_iou: `float` the Intersection-over-Union (IoU) threshold
                              used during the second association process, that is
-                             the association the mid confidence detections and
-                             the remaining active tracklets.
-        - association_3_iou: `float` the Intersection-over-Union (IoU) threshold
-                             used during the third association process, that is
                              the association the remaining high confidence
                              detections and the inactive tracklets.
+        - association_3_iou: `float` the Intersection-over-Union (IoU) threshold
+                             used during the third association process, that is
+                             the association the mid confidence detections and
+                             the remaining active tracklets.
+
     - tracklet_config: `Dict` configuration dictionnary of all the `Tracklet`s
                        belonging to this `Tracker`.
     """
@@ -187,26 +188,11 @@ class Tracker:
             tracklet.update(detection=detection)
 
         # Association 2
-        # remaining active tracklets <-> mid confidence detections
-        matches, unmatched_active_tracklets, _unmatched_mid_detections = \
-            Tracker.associate(unmatched_active_tracklets, mid_detections,
-                              metrics.iou,
-                              self.config["matching"]["association_2_iou"])
-
-        # Update the matched tracklets with detections (i.e. measurement update)
-        for tracklet, detection in matches:
-            tracklet.update(detection=detection)
-
-        # Update the unmatched active tracklets
-        for tracklet in unmatched_active_tracklets:
-            tracklet.update(detection=None)
-
-        # Association 3
         # inactive tracklets <-> remaining high confidence detections
         matches, unmatched_inactive_tracklets, unmatched_high_detections = \
             Tracker.associate(inactive_tracklets, unmatched_high_detections,
                               metrics.iou,
-                              self.config["matching"]["association_3_iou"])
+                              self.config["matching"]["association_2_iou"])
 
         # Update the matched tracklets with detections (i.e. measurement update)
         for tracklet, detection in matches:
@@ -216,11 +202,6 @@ class Tracker:
         for tracklet in unmatched_inactive_tracklets:
             self.tracklets.remove(tracklet)
 
-        # Remove lost tracklets
-        for tracklet in self.tracklets.copy():
-            if tracklet.is_long_lost():
-                self.tracklets.remove(tracklet)
-
         # Initiate new tracklets from unmatched detections
         for detection in unmatched_high_detections:
             tracklet = Tracklet.initiate_from_detection(
@@ -229,6 +210,26 @@ class Tracker:
                        )
             self.id_count += 1
             self.tracklets.append(tracklet)
+
+        # Association 3
+        # remaining active tracklets <-> mid confidence detections
+        matches, unmatched_active_tracklets, _unmatched_mid_detections = \
+            Tracker.associate(unmatched_active_tracklets, mid_detections,
+                              metrics.iou,
+                              self.config["matching"]["association_3_iou"])
+
+        # Update the matched tracklets with detections (i.e. measurement update)
+        for tracklet, detection in matches:
+            tracklet.update(detection=detection)
+
+        # Update the unmatched active tracklets
+        for tracklet in unmatched_active_tracklets:
+            tracklet.update(detection=None)
+
+        # Remove long lost tracklets
+        for tracklet in self.tracklets.copy():
+            if tracklet.is_long_lost():
+                self.tracklets.remove(tracklet)
 
 
     def update(self, detections: List[Detection]) -> None:

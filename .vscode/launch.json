@@ -12,18 +12,10 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "SOT Interactive",
+            "name": "Interactive Tracker",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tracking/interactive_sot.py",
-            "console": "integratedTerminal",
-            "args": ""
-        },
-        {
-            "name": "MOT Interactive",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/tracking/interactive_mot.py",
+            "program": "${workspaceFolder}/tracking/interactive_tracker.py",
             "console": "integratedTerminal",
             "args": ""
         },
