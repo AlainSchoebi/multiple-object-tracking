@@ -125,7 +125,7 @@ class Tracker:
             tracklet.predict()
 
 
-    def _detections_based_on_confidence(self, detections: List[Detection]) \
+    def _classify_detections_by_confidence(self, detections: List[Detection]) \
         -> Tuple[List[Detection], List[Detection], List[Detection]]:
         """
         Split the detections based on their confidence into three lists using
@@ -169,7 +169,7 @@ class Tracker:
 
         # Split detections based on their confidence
         low_detections, mid_detections, high_detections = \
-            self._detections_based_on_confidence(detections)
+            self._classify_detections_by_confidence(detections)
 
         # Split tracklets into active and inactive tracklets
         active_tracklets = \
@@ -446,26 +446,26 @@ class Tracker:
             # Show the last detections
             if self.config["visualization"]["show_last_detections"]:
 
+
+                low_detections, mid_detections, high_detections = \
+                    self._classify_detections_by_confidence(
+                        self._last_detections
+                    )
                 for detection in sorted(self._last_detections,
                                         key=lambda d: d.confidence):
-
-                    if detection.confidence < self.config["matching"] \
-                                                          ["low_confidence"]:
-                        color = np.array(matplotlib.colors.to_rgb(
-                            self.config["visualization"]["detection_color"]
-                                                        ["low_confidence"])
-                        )
-                    elif detection.confidence < self.config["matching"] \
-                                                           ["high_confidence"]:
-                        color = np.array(matplotlib.colors.to_rgb(
-                            self.config["visualization"]["detection_color"]
-                                                        ["mid_confidence"])
-                        )
+                    if detection in low_detections:
+                        color = self.config["visualization"] \
+                            ["detection_color"]["low_confidence"]
+                    elif detection in mid_detections:
+                        color = self.config["visualization"] \
+                            ["detection_color"]["mid_confidence"]
+                    elif detection in high_detections:
+                        color = self.config["visualization"] \
+                            ["detection_color"]["high_confidence"]
                     else:
-                        color = np.array(matplotlib.colors.to_rgb(
-                            self.config["visualization"]["detection_color"]
-                                                        ["high_confidence"])
-                        )
+                        raise ValueError("Error when classifying detections.")
+
+                    color = np.array(matplotlib.colors.to_rgb(color))
 
                     detection.show(axes=ax, color=color, show_text=False,
                                    only_borders=True, linewidth=1.5,

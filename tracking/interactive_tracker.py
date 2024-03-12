@@ -290,18 +290,31 @@ class InteractiveTracker:
 
 
     def draw_detections(self):
-        self.refresh(keep_detections=True)
 
-        color = self.tracker.config["visualization"] \
-                                       ["detection_color"]["high_confidence"]
+        low_detections, mid_detections, high_detections = \
+            self.tracker._classify_detections_by_confidence(self.detections)
 
         for detection in self.detections:
+
+            if detection in low_detections:
+                color = self.tracker.config["visualization"] \
+                                       ["detection_color"]["low_confidence"]
+            elif detection in mid_detections:
+                color = self.tracker.config["visualization"] \
+                                       ["detection_color"]["mid_confidence"]
+            elif detection in high_detections:
+                color = self.tracker.config["visualization"] \
+                                       ["detection_color"]["high_confidence"]
+            else:
+                raise ValueError(f"Error when classifying the detections.")
+
             self.ax.text(*detection.corners()[3],
                 f"({detection.confidence:.2f})", fontsize=8,
                 color="white", ha='right', va='bottom',
                 bbox=dict(facecolor=color, linewidth=0,
                 boxstyle="round, pad=-0.05")
             )
+            self.ax.texts[-1].set_alpha(1)
 
             detection.show(axes=self.ax, show_text=False,
                 color=color, linestyle="dashed")
@@ -354,20 +367,16 @@ class InteractiveTracker:
                     self.refresh(keep_detections=True)
                     self.draw_detections()
                 else:
+                    for patch in self.ax.patches:
+                        if patch.get_linestyle() == 'dashed' and \
+                           patch.get_facecolor() != (0, 0, 0, 0):
+                            patch.remove()
+                    for text in self.ax.texts:
+                        if text.get_text()[0] == '(' and text.get_alpha() == 1:
+                            text.remove()
                     detection = self.detections[-1]
                     detection.confidence = confidence
-
-                    if self.mode == Mode.SOT and SOT_removed_detections:
-                        self.refresh(keep_detections=True)
-                        self.draw_detections()
-                    else:
-                        self.ax.text(*detection.corners()[3],
-                            f"({detection.confidence:.2f})", fontsize=8,
-                            color="white", ha='right', va='bottom',
-                            bbox=dict(facecolor=color, linewidth=0,
-                            boxstyle="round, pad=-0.05")
-                        )
-                        plt.draw()
+                    self.draw_detections()
 
         elif event.button == 2:
             self.matching_step()
