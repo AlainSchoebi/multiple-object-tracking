@@ -79,9 +79,9 @@ The dynamics are described by the following constant velocity model with indepen
 
 where $\hat \bullet$ stands for the current mean estimate of the state.
 
-### Measurement
+### Measurement Model
 
-The measurement are the detections, which can be obtained via an object detector such as YOLO. The measurement model is given by:
+The measurements are the detections, which can be obtained via an object detector such as [YOLO](https://arxiv.org/pdf/1506.02640.pdf). The measurement model is given by:
 
 $$
 \mathbf{z} = (z_x, z_y, z_w, z_h)^\top
