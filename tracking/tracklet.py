@@ -473,7 +473,12 @@ class Tracklet:
         """
         Return the string representation of the `Tracklet`.
         """
+        history_txt = str(list(self.history))
+        if len(self.history) > 3:
+            history_txt = str(["..."] + list(self.history)[-3:]).replace("'","")
+
         return f"Tracklet(" + \
+               f"id={self.id}, " + \
                f"x={self.state[Tracklet.X]:.2f}, " + \
                f"y={self.state[Tracklet.Y]:.2f}, " + \
                f"w={self.state[Tracklet.W]:.2f}, " + \
@@ -483,4 +488,4 @@ class Tracklet:
                f"vw={self.state[Tracklet.VW]:.2f}, " + \
                f"vh={self.state[Tracklet.VH]:.2f}, " + \
                f"covariance=..., " + \
-               f"history={list(self.history)})"
+               f"history={history_txt})"

@@ -154,6 +154,16 @@ class Tracker:
         return low_detections, mid_detections, high_detections
 
 
+    def _save_last_detections(self, last_detections: List[Detection]) -> None:
+        """
+        Save last detections for visualization.
+
+        Inputs
+        - last_detections: list of `Detection` to save
+        """
+
+        self._last_detections = [d.copy() for d in last_detections]
+
     def associate_and_measurement_update(self, detections: List[Detection]) \
         -> None:
         """
@@ -164,8 +174,7 @@ class Tracker:
         - detections: list of `Detection`
         """
 
-        # Save last detections for visualization
-        self._last_detections = [detection.copy() for detection in detections]
+        self._save_last_detections(detections)
 
         # Split detections based on their confidence
         low_detections, mid_detections, high_detections = \
@@ -245,6 +254,82 @@ class Tracker:
 
         # Association and measurement update steps
         self.associate_and_measurement_update(detections)
+
+
+    def measurement_update_for_given_association(
+        self, detections: List[Detection],
+        corresponding_tracklets: List[int] | List[Tracklet]
+        ) -> None:
+        """
+        Update the tracker with detection-tracklet pairs. That is, the
+        association is provided as input and only the measurement update is
+        performed. Note that the prediction step is not performed.
+
+        Note: not all the current tracklets of the tracker necessarily need to
+              be updated with a provided detection. The remaining tracklets will
+              be updated with a `None` detection.
+
+        Inputs
+        - detections:               list of `Detection`
+        - correspondings_tracklets: list of `int` representing the ID of each
+                                    corresponding tracklet, or list of
+                                    `Tracklet` for a reference to each
+                                    corresponding tracklet
+        """
+
+        self._save_last_detections(detections)
+
+        # Assert valid inputs
+        if not len(detections) == len(corresponding_tracklets):
+            raise ValueError(f"The number of detections must be equal to the " +
+                             f"number of corresponding tracklets.")
+
+        if len(detections) == 0:
+            return
+
+        if len(corresponding_tracklets) != len(set(corresponding_tracklets)):
+            raise ValueError(f"The corresponding tracklets list cannot " +
+                             f"the same tracklet multiple times.")
+
+        def do_tracklets_correspond(tracklet: Tracklet,
+                                    tracklet_or_id: Tracklet | int):
+            return tracklet is tracklet_or_id or tracklet.id == tracklet_or_id
+
+        # Reorder the detection-tracklet pairs with the tracklets of the tracker
+        pairs: Matches = []
+        count = 0
+        for tracklet in self.tracklets:
+
+            # Find corresponding detection
+            detection = None
+            for tracklet_i, detection_i, in zip(corresponding_tracklets,
+                                                detections):
+                if do_tracklets_correspond(tracklet, tracklet_i):
+                    detection = detection_i
+                    count += 1
+                    break
+
+            # Append the tracklet-detection pair
+            pairs.append((tracklet, detection))
+
+        if not count == len(corresponding_tracklets):
+            raise ValueError(f"Not all the corresponding_tracklets seem to " +
+                             f"exist in the tracker.")
+
+        # Measurement update for all the tracklets
+        # Note: some tracklest may have a `None` detection
+        for tracklet, detection in pairs:
+            tracklet.update(detection=detection)
+
+        # Remove long lost tracklets
+        for tracklet in self.tracklets.copy():
+            if tracklet.is_long_lost():
+                self.tracklets.remove(tracklet)
+
+        # Remove inactive unmatched tracklets
+        for tracklet in self.tracklets.copy():
+            if not tracklet.is_active() and not tracklet.is_tracked():
+                self.tracklets.remove(tracklet)
 
 
     @staticmethod

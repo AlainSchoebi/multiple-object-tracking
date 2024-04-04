@@ -90,6 +90,19 @@ class BBox:
         )
 
     @staticmethod
+    def from_points(points: NDArray, mode: XYXYMode = XYXYMode.NORMAL) -> BBox:
+        """
+        Create a `BBox` containing all the provided points.
+
+        Inputs:
+        - points: `NDArray(..., 2)` list of 2D points in format [x, y]
+        """
+        return BBox.from_xyxy(
+            points[..., 0].min(), points[..., 1].min(),
+            points[..., 0].max(), points[..., 1].max()
+        )
+
+    @staticmethod
     def from_center_wh(x_center: float, y_center: float, w: float, h: float,
                        mode: XYXYMode = XYXYMode.NORMAL) -> BBox:
         """
