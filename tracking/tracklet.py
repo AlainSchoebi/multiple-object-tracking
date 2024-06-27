@@ -17,7 +17,7 @@ import matplotlib.colors
 
 # Utils
 import tracking.utils.kalman_filter as kf
-from tracking.utils.bbox import BBox, XYXYMode
+from tracking.utils.bbox import BBox
 from tracking.utils.config import update_config_dict
 
 # Tracking
@@ -168,7 +168,7 @@ class Tracklet:
 
         # State: center, w, h from detection, and 0 velocity
         tracklet.state = np.array([
-            *detection.center_wh_tuple(mode=XYXYMode.NORMAL), 0, 0, 0, 0
+            *detection.center_wh_tuple(), 0, 0, 0, 0
         ])
 
         # Covariance
@@ -390,7 +390,7 @@ class Tracklet:
         elif self.is_lost():
             color = self.config["visualization"]["lost_color"]
         else:
-            color = self.config["visualization"]["tracked_color"]       
+            color = self.config["visualization"]["tracked_color"]
         color = np.array(matplotlib.colors.to_rgb(color))
 
         args["show_text"] = False
