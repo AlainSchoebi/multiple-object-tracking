@@ -1,5 +1,5 @@
-# Object Tracking
-Object tracking method using a Kalman Filter and a matching process inspired by [ByteTrack](https://arxiv.org/pdf/2110.06864.pdf).
+# Multiple Object Tracking
+General-purpose multiple object tracking method using a Kalman Filter and a matching process inspired by [ByteTrack](https://arxiv.org/pdf/2110.06864.pdf).
 
 ![Tracker](docs/tracker.png)
 
